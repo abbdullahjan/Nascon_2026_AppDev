@@ -10,7 +10,7 @@ async function getInventory(variant_id) {
   return {
     variant_id,
     stock:    variant.stock,
-    reserved: 0, // reservations are committed immediately via FOR UPDATE
+    reserved: variant.reserved ?? 0,
   };
 }
 
