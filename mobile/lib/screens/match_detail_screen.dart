@@ -133,6 +133,7 @@ class _MatchDetailScreenState extends State<MatchDetailScreen> {
                     status: status,
                     fixture: fixture,
                     score: score,
+                    sports: state.sports,
                     onRefresh: _loadScore,
                   ),
                   const SizedBox(height: 16),
@@ -262,10 +263,11 @@ class _EventRow extends StatelessWidget {
 
 // ── Organizer controls ────────────────────────────────────────────────────
 class _OrganizerControls extends StatefulWidget {
-  const _OrganizerControls({required this.matchId, required this.status, required this.fixture, required this.score, required this.onRefresh});
+  const _OrganizerControls({required this.matchId, required this.status, required this.fixture, required this.score, required this.sports, required this.onRefresh});
   final String matchId, status;
   final Map<String, dynamic> fixture;
   final Map<String, dynamic>? score;
+  final List<Map<String, dynamic>> sports;
   final VoidCallback onRefresh;
   @override
   State<_OrganizerControls> createState() => _OrganizerControlsState();
@@ -275,12 +277,6 @@ class _OrganizerControlsState extends State<_OrganizerControls> {
   bool _busy = false;
   String? _selectedTeam;
   String? _selectedEvent;
-  static const _sportEvents = {
-    'football': ['goal'],
-    'basketball': ['free_throw', 'two_pointer', 'three_pointer'],
-    'cricket': ['dot_ball', 'single', 'two', 'four', 'six', 'wide', 'no_ball', 'wicket'],
-    'esports': ['round_win'],
-  };
 
   Future<void> _sendEvent(AppState state, String type, {Map<String, dynamic>? payload}) async {
     setState(() => _busy = true);
@@ -310,8 +306,16 @@ class _OrganizerControlsState extends State<_OrganizerControls> {
   @override
   Widget build(BuildContext context) {
     final state = AppStateScope.of(context);
-    final sport = widget.fixture['sport'] as String? ?? 'football';
-    final events = _sportEvents[sport] ?? ['score'];
+    final sportId = widget.score?['sport_id'] as String? ?? widget.fixture['sport'] as String? ?? 'football';
+    
+    // Get event types from sport config
+    final sportConfig = widget.sports.firstWhere(
+      (s) => s['sport_id'] == sportId,
+      orElse: () => <String, dynamic>{'scoring_events': <String, dynamic>{}},
+    );
+    final scoringEvents = sportConfig['scoring_events'] as Map<String, dynamic>? ?? {};
+    final events = scoringEvents.keys.toList();
+    
     final homeTeam = widget.fixture['home'] as String? ?? 'home';
     final awayTeam = widget.fixture['away'] as String? ?? 'away';
 

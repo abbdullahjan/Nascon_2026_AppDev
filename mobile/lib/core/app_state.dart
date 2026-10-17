@@ -31,6 +31,8 @@ class AppState extends ChangeNotifier {
 
   // ── Cached league/fixtures ─────────────────────────────────────────────────
   late Box _cacheBox;
+  List<Map<String, dynamic>> _sports = [];
+  List<Map<String, dynamic>> get sports => List.unmodifiable(_sports);
 
   // ─────────────────────────────────────────────────────────────────────────
   Future<void> initialize() async {
@@ -53,6 +55,18 @@ class AppState extends ChangeNotifier {
     await ApiClient().init();
     await ApiClient().updateBaseUrl(serverUrl);
     await checkConnection();
+    
+    // Load sports config
+    await _loadSports();
+  }
+
+  Future<void> _loadSports() async {
+    try {
+      _sports = await ApiClient().getSports();
+      notifyListeners();
+    } catch (_) {
+      // Fallback to empty list; screens will handle gracefully
+    }
   }
 
   void _loadQueue() {
