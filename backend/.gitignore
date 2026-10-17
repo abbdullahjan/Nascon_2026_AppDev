@@ -1,0 +1,21 @@
+# Backend (Node.js) — local ignores
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+dist/
+build/
+.cache/
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Coverage / test artifacts
+coverage/
+.nyc_output/
+test-results/
+
+# PM2 / process files
+.pm2/
