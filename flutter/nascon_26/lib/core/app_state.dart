@@ -1,139 +1,241 @@
 import 'dart:convert';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 import 'api_client.dart';
 
-class AppState extends ChangeNotifier {
-  final ApiClient api = ApiClient();
-  final FlutterSecureStorage secureStorage = const FlutterSecureStorage();
-  SharedPreferences? _prefs;
+const _uuid = Uuid();
+const _secureStorage = FlutterSecureStorage();
 
-  String role = 'General Viewer';
-  String userName = 'Guest Viewer';
+class AppState extends ChangeNotifier {
+  // ── Auth ──────────────────────────────────────────────────────────────────
+  String? jwt;
+  String role = 'viewer';
+  String userName = 'Guest';
+  String? userId;
+
+  // ── Connection ────────────────────────────────────────────────────────────
   bool online = false;
   bool syncing = false;
   String serverUrl = 'http://10.0.2.2:8080';
-  final List<Map<String, dynamic>> pendingActions = [];
-  final List<Map<String, dynamic>> activity = [];
-  final Map<String, int> cart = {};
-  String selectedTenant = 'Alpha Sports';
 
+  // ── Cart ──────────────────────────────────────────────────────────────────
+  final Map<String, int> cart = {}; // variantId → qty
+
+  // ── Offline queue ─────────────────────────────────────────────────────────
+  late Box _syncBox;
+  final List<Map<String, dynamic>> _pendingActions = [];
+  List<Map<String, dynamic>> get pendingActions => List.unmodifiable(_pendingActions);
+
+  // ── Cached league/fixtures ─────────────────────────────────────────────────
+  late Box _cacheBox;
+
+  // ─────────────────────────────────────────────────────────────────────────
   Future<void> initialize() async {
-    _prefs = await SharedPreferences.getInstance();
-    serverUrl = _prefs?.getString('serverUrl') ?? serverUrl;
-    role = _prefs?.getString('role') ?? role;
-    userName = _prefs?.getString('userName') ?? userName;
-    final queued = _prefs?.getString('pendingActions');
-    if (queued != null) {
-      try {
-        pendingActions.addAll(List<Map<String, dynamic>>.from(jsonDecode(queued)));
-      } catch (_) {}
-    }
-    api.baseUrl = serverUrl;
+    await Hive.initFlutter();
+    _syncBox = await Hive.openBox('offline_queue');
+    _cacheBox = await Hive.openBox('cache');
+
+    final prefs = await SharedPreferences.getInstance();
+    serverUrl = prefs.getString('serverUrl') ?? serverUrl;
+
+    // Load secure auth
+    jwt = await _secureStorage.read(key: 'jwt');
+    role = await _secureStorage.read(key: 'role') ?? 'viewer';
+    userName = await _secureStorage.read(key: 'userName') ?? 'Guest';
+    userId = await _secureStorage.read(key: 'userId');
+
+    // Load pending actions from Hive
+    _loadQueue();
+
+    await ApiClient().init();
+    await ApiClient().updateBaseUrl(serverUrl);
     await checkConnection();
   }
 
-  Future<void> setServerUrl(String value) async {
-    serverUrl = value.trim().replaceAll(RegExp(r'/$'), '');
-    api.baseUrl = serverUrl;
-    await _prefs?.setString('serverUrl', serverUrl);
-    await checkConnection();
-    notifyListeners();
-  }
-
-  Future<void> signIn(String email, String password) async {
-    // The Day 1 brief defines demo identities. Keep credentials out of plaintext storage.
-    const accounts = {
-      'admin@nascon.test': ('Platform Super-Admin', 'Platform Admin'),
-      'organizer@nascon.test': ('League Organizer', 'League Organizer'),
-      'manager@nascon.test': ('Club Manager', 'Club Manager'),
-      'player@nascon.test': ('Player', 'Player'),
-      'viewer@nascon.test': ('General Viewer', 'General Viewer'),
-    };
-    final account = accounts[email.trim().toLowerCase()];
-    if (account == null || password != 'Nascon@26') {
-      throw Exception('Email or password is incorrect.');
+  void _loadQueue() {
+    _pendingActions.clear();
+    for (final key in _syncBox.keys) {
+      final v = _syncBox.get(key);
+      if (v is String) {
+        try {
+          _pendingActions.add(Map<String, dynamic>.from(jsonDecode(v) as Map));
+        } catch (_) {}
+      }
     }
-    role = account.$1;
-    userName = account.$2;
-    await _prefs?.setString('role', role);
-    await _prefs?.setString('userName', userName);
-    await secureStorage.write(key: 'signedInEmail', value: email.trim().toLowerCase());
+  }
+
+  // ── Auth ──────────────────────────────────────────────────────────────────
+  Future<void> login(String email, String password) async {
+    try {
+      final response = await ApiClient().login(email, password);
+      jwt = response['token'] as String?;
+      role = response['role'] as String? ?? 'viewer';
+      userName = response['name'] as String? ?? email.split('@').first;
+      userId = response['user_id'] as String?;
+    } catch (e) {
+      // Fallback to rbac-matrix for demo purposes (backend may not have /login yet)
+      final matrix = await ApiClient().getRbacMatrix();
+      final tokens = matrix['tokens'] as Map<String, dynamic>;
+      final roleMap = {
+        'admin@nascon.test': ('super_admin', 'Super Admin', tokens['super_admin'] as String),
+        'organizer@nascon.test': ('league_organizer', 'Organizer', tokens['league_organizer'] as String),
+        'manager@nascon.test': ('club_manager', 'Club Manager', tokens['club_manager'] as String),
+        'player@nascon.test': ('player', 'Player', tokens['player'] as String),
+        'viewer@nascon.test': ('viewer', 'Viewer', tokens['viewer'] as String),
+      };
+      final match = roleMap[email.trim().toLowerCase()];
+      if (match == null || password != 'Nascon@26') throw Exception('Invalid email or password');
+      role = match.$1;
+      userName = match.$2;
+      jwt = match.$3;
+      userId = null;
+    }
+    await _secureStorage.write(key: 'jwt', value: jwt);
+    await _secureStorage.write(key: 'role', value: role);
+    await _secureStorage.write(key: 'userName', value: userName);
+    if (userId != null) await _secureStorage.write(key: 'userId', value: userId!);
     notifyListeners();
   }
 
-  Future<void> signOut() async {
-    role = 'General Viewer';
-    userName = 'Guest Viewer';
-    await _prefs?.setString('role', role);
-    await _prefs?.setString('userName', userName);
-    await secureStorage.delete(key: 'signedInEmail');
+  Future<void> logout() async {
+    jwt = null;
+    role = 'viewer';
+    userName = 'Guest';
+    userId = null;
+    await _secureStorage.deleteAll();
     notifyListeners();
   }
 
+  bool get isLoggedIn => jwt != null;
+
+  // ── Connection ────────────────────────────────────────────────────────────
   Future<void> checkConnection() async {
-    online = await api.health();
+    online = await ApiClient().health();
     notifyListeners();
   }
 
-  Future<void> queueAction(String type, Map<String, dynamic> payload) async {
+  Future<void> setServerUrl(String url) async {
+    serverUrl = url.trim().replaceAll(RegExp(r'/$'), '');
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('serverUrl', serverUrl);
+    await ApiClient().updateBaseUrl(serverUrl);
+    await checkConnection();
+    notifyListeners();
+  }
+
+  // ── Offline queue ─────────────────────────────────────────────────────────
+  Future<void> queueScoreEvent({
+    required String matchId,
+    required String teamId,
+    required String eventType,
+    required int baseVersion,
+  }) async {
+    final actionId = 'a_${_uuid.v4()}';
+    final eventId = 'evt_${_uuid.v4()}';
     final action = {
-      'action_id': 'act-${DateTime.now().microsecondsSinceEpoch}',
-      'type': type,
-      'payload': payload,
-      'base_version': 0,
-      'created_at': DateTime.now().toUtc().toIso8601String(),
+      'action_id': actionId,
+      'type': 'score_event',
+      'queued_at': DateTime.now().toUtc().toIso8601String(),
+      'base_version': baseVersion,
       'status': 'pending',
+      'payload': {
+        'event_id': eventId,
+        'match_id': matchId,
+        'type': 'score',
+        'payload': {'team_id': teamId, 'event_type': eventType},
+      },
     };
-    pendingActions.add(action);
-    await _persistQueue();
+    await _syncBox.put(actionId, jsonEncode(action));
+    _pendingActions.add(action);
     notifyListeners();
   }
 
-  Future<void> _persistQueue() async {
-    await _prefs?.setString('pendingActions', jsonEncode(pendingActions));
+  Future<void> queueRosterTransfer(Map<String, dynamic> transferBody, int baseVersion) async {
+    final actionId = 'a_${_uuid.v4()}';
+    final requestId = 'tr_${_uuid.v4()}';
+    final action = {
+      'action_id': actionId,
+      'type': 'roster_transfer',
+      'queued_at': DateTime.now().toUtc().toIso8601String(),
+      'base_version': baseVersion,
+      'status': 'pending',
+      'payload': {...transferBody, 'request_id': requestId},
+    };
+    await _syncBox.put(actionId, jsonEncode(action));
+    _pendingActions.add(action);
+    notifyListeners();
   }
 
-  Future<void> syncQueue() async {
-    if (pendingActions.isEmpty) {
+  Future<Map<String, dynamic>> syncQueue() async {
+    if (_pendingActions.isEmpty) {
       await checkConnection();
-      return;
+      return {'applied': 0, 'rejected': 0, 'duplicate': 0};
     }
     syncing = true;
     notifyListeners();
-    online = await api.health();
+
+    online = await ApiClient().health();
     if (!online) {
       syncing = false;
       notifyListeners();
-      return;
+      return {'applied': 0, 'rejected': 0, 'duplicate': 0};
     }
+
     try {
-      final response = await api.post('/audit/v1/offline-sync', {'actions': pendingActions});
-      final results = (response['results'] as List?) ?? const [];
+      final deviceId = await _getDeviceId();
+      final actionsToSync = List<Map<String, dynamic>>.from(_pendingActions);
+      final response = await ApiClient().offlineSync(deviceId, actionsToSync);
+      final results = (response['results'] as List?) ?? [];
+      final summary = response['summary'] as Map<String, dynamic>? ?? {};
+
+      // Update status in queue
       for (final result in results) {
-        activity.insert(0, Map<String, dynamic>.from(result as Map));
+        final actionId = result['action_id'] as String?;
+        if (actionId == null) continue;
+        final idx = _pendingActions.indexWhere((a) => a['action_id'] == actionId);
+        if (idx >= 0) {
+          final status = result['status'] as String?;
+          if (status == 'applied' || status == 'duplicate') {
+            await _syncBox.delete(actionId);
+            _pendingActions.removeAt(idx);
+          } else {
+            _pendingActions[idx] = {..._pendingActions[idx], 'status': 'rejected', 'result': result};
+            await _syncBox.put(actionId, jsonEncode(_pendingActions[idx]));
+          }
+        }
       }
-      // Contract returns per-action applied/rejected results; retain only actions the
-      // server explicitly identifies as unresolved, otherwise clear acknowledged queue.
-      final unresolved = response['pending_actions'];
-      pendingActions
-        ..clear()
-        ..addAll(unresolved is List
-            ? unresolved.map((e) => Map<String, dynamic>.from(e as Map))
-            : <Map<String, dynamic>>[]);
-      await _persistQueue();
-    } catch (_) {
+
+      syncing = false;
+      notifyListeners();
+      return summary;
+    } catch (e) {
       online = false;
+      syncing = false;
+      notifyListeners();
+      rethrow;
     }
-    syncing = false;
+  }
+
+  Future<String> _getDeviceId() async {
+    String? id = await _secureStorage.read(key: 'device_id');
+    if (id == null) {
+      id = 'dev_${_uuid.v4()}';
+      await _secureStorage.write(key: 'device_id', value: id);
+    }
+    return id;
+  }
+
+  // ── Cart ──────────────────────────────────────────────────────────────────
+  void addToCart(String variantId, {int qty = 1}) {
+    cart[variantId] = (cart[variantId] ?? 0) + qty;
     notifyListeners();
   }
 
-  Future<Map<String, dynamic>?> getJson(String path) => api.get(path);
-
-  Future<void> addToCart(String variantId) async {
-    cart[variantId] = (cart[variantId] ?? 0) + 1;
+  void removeFromCart(String variantId) {
+    cart.remove(variantId);
     notifyListeners();
   }
 
@@ -142,16 +244,38 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  int get cartCount => cart.values.fold(0, (sum, qty) => sum + qty);
+  int get cartCount => cart.values.fold(0, (s, q) => s + q);
+
+  // ── Cache helpers ─────────────────────────────────────────────────────────
+  Future<void> cacheData(String key, dynamic data) async {
+    await _cacheBox.put(key, jsonEncode({'data': data, 'ts': DateTime.now().toIso8601String()}));
+  }
+
+  Map<String, dynamic>? getCached(String key) {
+    final raw = _cacheBox.get(key);
+    if (raw == null) return null;
+    try {
+      return Map<String, dynamic>.from(jsonDecode(raw as String) as Map);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // ── Role helpers ───────────────────────────────────────────────────────────
+  bool get isOrganizer => role == 'league_organizer' || role == 'super_admin';
+  bool get isManager => role == 'club_manager' || role == 'super_admin';
+  bool get isSuperAdmin => role == 'super_admin';
+  bool get isPlayer => role == 'player';
 }
 
+// ── InheritedWidget scope ──────────────────────────────────────────────────
 class AppStateScope extends InheritedNotifier<AppState> {
   const AppStateScope({super.key, required AppState state, required super.child})
       : super(notifier: state);
 
   static AppState of(BuildContext context) {
     final scope = context.dependOnInheritedWidgetOfExactType<AppStateScope>();
-    assert(scope != null, 'AppStateScope missing');
+    assert(scope != null, 'AppStateScope not found in tree');
     return scope!.notifier!;
   }
 }
