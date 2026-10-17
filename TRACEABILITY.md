@@ -122,7 +122,7 @@ Each requirement ID maps to the source file(s) that implement it and the test fi
 | Offline sync endpoint | `backend/src/services/offlineSyncService.js` |
 | Per-action conflict resolution | `backend/src/services/offlineSyncService.js` → `processAction()` |
 | Route | `backend/src/routes/offlineSync.js` |
-| Mobile implementation | `flutter/nascon_26/` |
+| Mobile implementation | `mobile/` |
 
 ---
 

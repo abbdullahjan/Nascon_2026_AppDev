@@ -19,7 +19,7 @@ A UI-first Flutter implementation for the NaSCon '26 Part I multi-sport league a
 ## Run in the repository
 
 ```powershell
-cd flutter/nascon_26
+cd mobile
 flutter pub get
 flutter analyze
 flutter test
