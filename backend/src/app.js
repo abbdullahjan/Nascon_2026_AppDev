@@ -20,6 +20,7 @@ const checkoutRoutes     = require('./routes/checkout');
 const rbacRoutes         = require('./routes/rbac');
 const offlineSyncRoutes  = require('./routes/offlineSync');
 const pingRoutes         = require('./routes/ping');
+const authRoutes         = require('./routes/auth');
 
 const app = Fastify({ logger: true });
 
@@ -91,5 +92,6 @@ app.register(offlineSyncRoutes, { prefix: '/audit/v1' });
 
 // /api/v1/* IS rate-limited — pass the hook so ping.js can use it
 app.register(pingRoutes, { prefix: '/api/v1', rateLimitHook });
+app.register(authRoutes, { prefix: '/api/v1' });
 
 module.exports = app;

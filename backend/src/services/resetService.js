@@ -1,6 +1,7 @@
 'use strict';
 
-const db = require('../config/db');
+const db     = require('../config/db');
+const bcrypt = require('bcryptjs');
 
 // Baseline sport definitions — stored as data, never hard-coded in logic
 const BASELINE_SPORTS = [
@@ -77,19 +78,21 @@ const DEMO_USERS = [
  */
 async function reset({ seed = 42, stock = { 'var-jersey-001-M': 1, 'var-jersey-001-L': 5 } }) {
   await db.transaction(async (trx) => {
-    // Wipe all tables in dependency order
+    // Wipe all tables in dependency order (exact tables from migration)
     await trx.raw(`
       TRUNCATE TABLE
         offline_sync_results, offline_sync_requests,
-        order_items, orders,
-        stock_reservations, product_variants, products,
+        orders,
+        product_variants, products,
         roster_audit, player_registrations, players, squads,
+        roster_live_matches, roster_leagues,
         match_events, matches,
-        league_teams, leagues,
+        leagues,
         sports,
         discount_codes,
         users,
-        clubs, tenants
+        clubs, tenants,
+        app_config
       RESTART IDENTITY CASCADE
     `);
 
@@ -123,12 +126,13 @@ async function reset({ seed = 42, stock = { 'var-jersey-001-M': 1, 'var-jersey-0
       { league_id: 'league-beta-1',  tenant_id: 'tenant-beta',  sport_id: 'football', config: JSON.stringify({}) },
     ]);
 
-    // Seed demo users (passwords stored as bcrypt hash in real impl)
+    // Seed demo users with bcrypt-hashed passwords
     for (const user of DEMO_USERS) {
+      const hash = await bcrypt.hash(user.password, 10);
       await trx('users').insert({
         user_id:   user.user_id,
         email:     user.email,
-        password:  user.password, // hashed in full impl
+        password:  hash,
         role:      user.role,
         tenant_id: user.tenant_id,
         owned_id:  user.owned_id,
