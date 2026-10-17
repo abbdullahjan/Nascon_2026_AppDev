@@ -7,7 +7,7 @@ const db = knex({
   connection: process.env.DATABASE_URL,
   pool: { min: 2, max: 10 },
   migrations: {
-    directory: './src/db/migrations',
+    directory: require('path').join(__dirname, '../db/migrations'),
     tableName:  'knex_migrations',
   },
 });
