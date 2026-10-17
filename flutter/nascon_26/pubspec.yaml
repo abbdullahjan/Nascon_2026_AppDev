@@ -11,13 +11,10 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.8
 
-  # Networking
-  dio: ^5.7.0
-
-  # Secure storage (Keystore / Keychain)
+  # Secure storage — works on Android/iOS; web falls back to localStorage
   flutter_secure_storage: ^9.2.2
 
-  # Offline local DB
+  # Local DB — works on all platforms including web
   hive_flutter: ^1.1.0
 
   # Connectivity detection
@@ -26,12 +23,8 @@ dependencies:
   # UUID generation
   uuid: ^4.5.1
 
-  # Shared prefs (non-sensitive only: server URL)
+  # Shared prefs — works on all platforms
   shared_preferences: ^2.3.2
-
-  # PDF opening
-  open_filex: ^4.5.0
-  path_provider: ^2.1.4
 
 dev_dependencies:
   flutter_test:

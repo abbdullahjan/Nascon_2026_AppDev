@@ -3,7 +3,6 @@ import '../core/app_state.dart';
 import '../core/theme.dart';
 import '../widgets/ui.dart';
 import 'login_screen.dart';
-import 'splash_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});

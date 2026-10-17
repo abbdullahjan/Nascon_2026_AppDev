@@ -69,31 +69,13 @@ class AppState extends ChangeNotifier {
 
   // ── Auth ──────────────────────────────────────────────────────────────────
   Future<void> login(String email, String password) async {
-    try {
-      final response = await ApiClient().login(email, password);
-      jwt = response['token'] as String?;
-      role = response['role'] as String? ?? 'viewer';
-      userName = response['name'] as String? ?? email.split('@').first;
-      userId = response['user_id'] as String?;
-    } catch (e) {
-      // Fallback to rbac-matrix for demo purposes (backend may not have /login yet)
-      final matrix = await ApiClient().getRbacMatrix();
-      final tokens = matrix['tokens'] as Map<String, dynamic>;
-      final roleMap = {
-        'admin@nascon.test': ('super_admin', 'Super Admin', tokens['super_admin'] as String),
-        'organizer@nascon.test': ('league_organizer', 'Organizer', tokens['league_organizer'] as String),
-        'manager@nascon.test': ('club_manager', 'Club Manager', tokens['club_manager'] as String),
-        'player@nascon.test': ('player', 'Player', tokens['player'] as String),
-        'viewer@nascon.test': ('viewer', 'Viewer', tokens['viewer'] as String),
-      };
-      final match = roleMap[email.trim().toLowerCase()];
-      if (match == null || password != 'Nascon@26') throw Exception('Invalid email or password');
-      role = match.$1;
-      userName = match.$2;
-      jwt = match.$3;
-      userId = null;
-    }
-    await _secureStorage.write(key: 'jwt', value: jwt);
+    // ApiClient.login returns mock data in kDemoMode, real data otherwise
+    final response = await ApiClient().login(email, password);
+    jwt = response['token'] as String?;
+    role = response['role'] as String? ?? 'viewer';
+    userName = response['name'] as String? ?? email.split('@').first;
+    userId = response['user_id'] as String?;
+    await _secureStorage.write(key: 'jwt', value: jwt ?? '');
     await _secureStorage.write(key: 'role', value: role);
     await _secureStorage.write(key: 'userName', value: userName);
     if (userId != null) await _secureStorage.write(key: 'userId', value: userId!);

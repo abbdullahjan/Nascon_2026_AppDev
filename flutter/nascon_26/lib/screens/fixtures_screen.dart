@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../core/api_client.dart';
 import '../core/app_state.dart';
@@ -99,7 +98,6 @@ class _FixturesScreenState extends State<FixturesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final state = AppStateScope.of(context);
     return RefreshIndicator(
       color: kGold, backgroundColor: kSurface,
       onRefresh: _load,
