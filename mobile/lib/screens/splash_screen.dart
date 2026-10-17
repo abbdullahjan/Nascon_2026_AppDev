@@ -78,10 +78,10 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                   child: const Icon(Icons.bolt_rounded, color: Colors.black, size: 42),
                 ),
                 const SizedBox(height: 24),
-                const Text('NEXUS',
+                Text('NEXUS',
                     style: TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: kText, letterSpacing: 4)),
                 const SizedBox(height: 6),
-                const Text("NASCON '26 · LEAGUE OPERATIONS",
+                Text("NASCON '26 · LEAGUE OPERATIONS",
                     style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: kMuted, letterSpacing: 2.5)),
                 const Spacer(flex: 2),
                 if (!_failed) ...[
@@ -90,7 +90,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                     child: CircularProgressIndicator(strokeWidth: 2, color: kGold),
                   ),
                   const SizedBox(height: 16),
-                  Text(_status, style: const TextStyle(color: kMuted, fontSize: 12)),
+                  Text(_status, style: TextStyle(color: kMuted, fontSize: 12)),
                 ] else ...[
                   const Icon(Icons.wifi_off_rounded, color: kOrange, size: 32),
                   const SizedBox(height: 12),

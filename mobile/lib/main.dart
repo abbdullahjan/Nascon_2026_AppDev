@@ -19,17 +19,14 @@ class NasconApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppStateScope(
       state: state,
-      child: ValueListenableBuilder(
-        valueListenable: state,
-        builder: (context, _, __) => MaterialApp(
-          navigatorKey: navigatorKey,
-          debugShowCheckedModeBanner: false,
-          title: 'NaSCon \'26',
-          theme: buildTheme(isDark: false),
-          darkTheme: buildTheme(isDark: true),
-          themeMode: state.isDarkMode ? ThemeMode.dark : ThemeMode.light,
-          home: const SplashScreen(),
-        ),
+      child: MaterialApp(
+        navigatorKey: navigatorKey,
+        debugShowCheckedModeBanner: false,
+        title: 'NaSCon \'26',
+        theme: buildTheme(isDark: false),
+        darkTheme: buildTheme(isDark: true),
+        themeMode: state.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+        home: const SplashScreen(),
       ),
     );
   }
