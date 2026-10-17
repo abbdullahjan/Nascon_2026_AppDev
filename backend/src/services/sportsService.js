@@ -25,10 +25,10 @@ async function createSport(body) {
   // Validate scoring_model
   if (!VALID_MODELS.includes(body.scoring_model)) fields.push('scoring_model');
 
-  // Validate periods
+  // Validate periods — only if scoring_model is valid
   if (!body.periods || typeof body.periods !== 'object') {
     fields.push('periods');
-  } else {
+  } else if (VALID_MODELS.includes(body.scoring_model)) {
     const p = body.periods;
     if (body.scoring_model === 'event') {
       if (!Number.isInteger(p.count) || p.count < 1) fields.push('periods.count');
@@ -112,6 +112,14 @@ async function createSport(body) {
 }
 
 /**
+ * List all sports (id + name + scoring_model).
+ */
+async function listSports() {
+  const rows = await db('sports').select('sport_id', 'name', 'scoring_model');
+  return rows;
+}
+
+/**
  * Fetch a sport by id. Throws 404 if not found.
  */
 async function getSport(sport_id) {
@@ -120,4 +128,4 @@ async function getSport(sport_id) {
   return JSON.parse(row.config);
 }
 
-module.exports = { createSport, getSport };
+module.exports = { createSport, getSport, listSports };

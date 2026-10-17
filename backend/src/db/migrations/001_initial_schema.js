@@ -66,6 +66,7 @@ exports.up = async function (knex) {
     t.text('raw_body').nullable();
     t.text('response_body').nullable();
     t.timestamps(true, true);
+    t.index('match_id'); // fast sequence queries
   });
 
   // ── Users (demo accounts + RBAC) ───────────────────────────────────────────
