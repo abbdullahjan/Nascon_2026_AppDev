@@ -16,14 +16,76 @@ class _ClubScreenState extends State<ClubScreen> with SingleTickerProviderStateM
   bool _offline = false;
   Map<String, dynamic>? _data;
 
-  // Demo roster — replaced by real data when available
-  static const _roster = [
-    {'name': 'Ali Hassan', 'position': 'GK', 'role': 'captain', 'id': 'player-alpha-1'},
-    {'name': 'Bilal Khan', 'position': 'DF', 'role': 'starter', 'id': 'player-alpha-2'},
-    {'name': 'Omar Malik', 'position': 'MF', 'role': 'starter', 'id': 'p3'},
-    {'name': 'Saad Ahmed', 'position': 'FW', 'role': 'vice_captain', 'id': 'p4'},
-    {'name': 'Usman Raza', 'position': 'DF', 'role': 'substitute', 'id': 'p5'},
-  ];
+  // Demo rosters — replaced by real data when available (multi-sport, multi-team)
+  static final _allTeams = {
+    'Northside FC': {
+      'sport': 'football',
+      'roster': [
+        {'name': 'Ali Hassan', 'position': 'GK', 'role': 'captain', 'id': 'player-alpha-1'},
+        {'name': 'Bilal Khan', 'position': 'DF', 'role': 'starter', 'id': 'player-alpha-2'},
+        {'name': 'Omar Malik', 'position': 'MF', 'role': 'starter', 'id': 'p3'},
+        {'name': 'Saad Ahmed', 'position': 'FW', 'role': 'vice_captain', 'id': 'p4'},
+      ],
+    },
+    'Riverside Utd': {
+      'sport': 'football',
+      'roster': [
+        {'name': 'Hamza Ali', 'position': 'GK', 'role': 'captain', 'id': 'p10'},
+        {'name': 'Faisal Shah', 'position': 'DF', 'role': 'starter', 'id': 'p11'},
+        {'name': 'Zain Tariq', 'position': 'MF', 'role': 'starter', 'id': 'p12'},
+      ],
+    },
+    'Falcons': {
+      'sport': 'basketball',
+      'roster': [
+        {'name': 'Hassan Raza', 'position': 'PG', 'role': 'captain', 'id': 'b1'},
+        {'name': 'Ahmed Malik', 'position': 'SG', 'role': 'starter', 'id': 'b2'},
+        {'name': 'Usman Khan', 'position': 'SF', 'role': 'starter', 'id': 'b3'},
+      ],
+    },
+    'Titans': {
+      'sport': 'basketball',
+      'roster': [
+        {'name': 'Ali Qureshi', 'position': 'PG', 'role': 'captain', 'id': 'b10'},
+        {'name': 'Saad Jamil', 'position': 'C', 'role': 'starter', 'id': 'b11'},
+      ],
+    },
+    'Abbottabad XI': {
+      'sport': 'cricket',
+      'roster': [
+        {'name': 'Babar Khan', 'position': 'Batsman', 'role': 'captain', 'id': 'c1'},
+        {'name': 'Shaheen Shah', 'position': 'Bowler', 'role': 'starter', 'id': 'c2'},
+        {'name': 'Rizwan Ali', 'position': 'WK', 'role': 'starter', 'id': 'c3'},
+      ],
+    },
+    'Capital CC': {
+      'sport': 'cricket',
+      'roster': [
+        {'name': 'Imran Ahmed', 'position': 'All-rounder', 'role': 'captain', 'id': 'c10'},
+        {'name': 'Wasim Akram', 'position': 'Bowler', 'role': 'starter', 'id': 'c11'},
+      ],
+    },
+    'Nova Five': {
+      'sport': 'esports',
+      'roster': [
+        {'name': 'CyberAce', 'position': 'IGL', 'role': 'captain', 'id': 'e1'},
+        {'name': 'SharpShooter', 'position': 'AWP', 'role': 'starter', 'id': 'e2'},
+        {'name': 'FlashMaster', 'position': 'Entry', 'role': 'starter', 'id': 'e3'},
+      ],
+    },
+    'Pixel Wolves': {
+      'sport': 'esports',
+      'roster': [
+        {'name': 'ShadowKing', 'position': 'IGL', 'role': 'captain', 'id': 'e10'},
+        {'name': 'QuickScope', 'position': 'Rifler', 'role': 'starter', 'id': 'e11'},
+      ],
+    },
+  };
+
+  String _selectedTeam = 'Northside FC';
+  List<Map<String, dynamic>> get _roster => 
+      (_allTeams[_selectedTeam]?['roster'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+  String get _teamSport => _allTeams[_selectedTeam]?['sport'] as String? ?? 'football';
 
   @override
   void initState() {
@@ -91,17 +153,37 @@ class _ClubScreenState extends State<ClubScreen> with SingleTickerProviderStateM
                 ),
                 const SizedBox(width: 14),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  const Text('Northside FC', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
+                  Text(_selectedTeam, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
                   const SizedBox(height: 2),
-                  const Text('Alpha Sports · Tenant Alpha', style: TextStyle(color: kMuted, fontSize: 11)),
+                  const Text('Alpha Sports · Multi-Sport', style: TextStyle(color: kMuted, fontSize: 11)),
                   const SizedBox(height: 6),
-                  Row(children: const [
-                    StatusBadge('ACTIVE', color: kGreen),
-                    SizedBox(width: 8),
-                    StatusBadge('FOOTBALL'),
+                  Row(children: [
+                    const StatusBadge('ACTIVE', color: kGreen),
+                    const SizedBox(width: 8),
+                    StatusBadge(_teamSport.toUpperCase()),
                   ]),
                 ])),
               ])),
+              const SizedBox(height: 10),
+              // Team selector
+              SizedBox(
+                height: 34,
+                child: ListView(scrollDirection: Axis.horizontal, children: _allTeams.keys.map((t) => Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: GestureDetector(
+                    onTap: () => setState(() => _selectedTeam = t),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: _selectedTeam == t ? kGold.withValues(alpha: 0.15) : kSurface2,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: _selectedTeam == t ? kGold.withValues(alpha: 0.5) : kBorder),
+                      ),
+                      child: Text(t, style: TextStyle(color: _selectedTeam == t ? kGold : kMuted, fontSize: 11, fontWeight: FontWeight.w700)),
+                    ),
+                  ),
+                )).toList()),
+              ),
               const SizedBox(height: 10),
               Row(children: [
                 Expanded(child: Panel(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

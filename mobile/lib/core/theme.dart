@@ -1,95 +1,136 @@
 import 'package:flutter/material.dart';
 
-// ── EWC-inspired palette ───────────────────────────────────────────────────
-// Deep tournament blacks, gold champion accent, clean white text
-const Color kBg = Color(0xFF0C0C0C);          // deepest background
-const Color kSurface = Color(0xFF141414);      // card / surface
-const Color kSurface2 = Color(0xFF1C1C1C);    // elevated surface
-const Color kBorder = Color(0xFF2A2A2A);       // subtle dividers
-const Color kGold = Color(0xFFD4A017);         // champion gold accent
-const Color kGoldLight = Color(0xFFE8C547);    // highlight gold
-const Color kGreen = Color(0xFF22C55E);        // online / success
-const Color kRed = Color(0xFFEF4444);          // eliminated / error
-const Color kOrange = Color(0xFFF97316);       // offline / warning
-const Color kBlue = Color(0xFF3B82F6);         // upcoming
-const Color kMuted = Color(0xFF6B7280);        // secondary text
-const Color kText = Color(0xFFF1F1F1);         // primary text
+// ─────────────────────────────────────────────────────────────────────────────
+// THEME CONFIGURATION
+// ─────────────────────────────────────────────────────────────────────────────
 
-ThemeData buildTheme() {
+// Light Theme Colors (Default)
+const kLightBg = Color(0xFFF8F9FA);
+const kLightSurface = Color(0xFFFFFFFF);
+const kLightSurface2 = Color(0xFFF1F3F5);
+const kLightText = Color(0xFF212529);
+const kLightMuted = Color(0xFF6C757D);
+const kLightBorder = Color(0xFFDEE2E6);
+
+// Dark Theme Colors
+const kDarkBg = Color(0xFF0D1117);
+const kDarkSurface = Color(0xFF161B22);
+const kDarkSurface2 = Color(0xFF21262D);
+const kDarkText = Color(0xFFC9D1D9);
+const kDarkMuted = Color(0xFF8B949E);
+const kDarkBorder = Color(0xFF30363D);
+
+// Accent Colors (same for both themes)
+const kGold = Color(0xFFF59E0B);
+const kGoldLight = Color(0xFFFBBF24);
+const kGreen = Color(0xFF10B981);
+const kRed = Color(0xFFEF4444);
+const kBlue = Color(0xFF3B82F6);
+const kOrange = Color(0xFFF97316);
+
+// Current theme colors (dynamically set)
+Color kBg = kLightBg;
+Color kSurface = kLightSurface;
+Color kSurface2 = kLightSurface2;
+Color kText = kLightText;
+Color kMuted = kLightMuted;
+Color kBorder = kLightBorder;
+
+ThemeData buildTheme({bool isDark = false}) {
+  // Update global color variables
+  if (isDark) {
+    kBg = kDarkBg;
+    kSurface = kDarkSurface;
+    kSurface2 = kDarkSurface2;
+    kText = kDarkText;
+    kMuted = kDarkMuted;
+    kBorder = kDarkBorder;
+  } else {
+    kBg = kLightBg;
+    kSurface = kLightSurface;
+    kSurface2 = kLightSurface2;
+    kText = kLightText;
+    kMuted = kLightMuted;
+    kBorder = kLightBorder;
+  }
+
   return ThemeData(
     useMaterial3: true,
-    brightness: Brightness.dark,
+    brightness: isDark ? Brightness.dark : Brightness.light,
     scaffoldBackgroundColor: kBg,
-    colorScheme: ColorScheme.dark(
+    colorScheme: ColorScheme(
+      brightness: isDark ? Brightness.dark : Brightness.light,
       primary: kGold,
-      secondary: kGoldLight,
-      surface: kSurface,
-      error: kRed,
       onPrimary: Colors.black,
+      secondary: kGoldLight,
+      onSecondary: Colors.black,
+      error: kRed,
+      onError: Colors.white,
+      surface: kSurface,
       onSurface: kText,
     ),
-    fontFamily: 'Roboto',
-    appBarTheme: const AppBarTheme(
-      backgroundColor: kBg,
+    appBarTheme: AppBarTheme(
+      backgroundColor: kSurface,
       foregroundColor: kText,
       elevation: 0,
-      centerTitle: false,
-      titleTextStyle: TextStyle(
-        fontFamily: 'Roboto',
-        fontSize: 17,
-        fontWeight: FontWeight.w700,
-        color: kText,
-        letterSpacing: 0.2,
-      ),
+      surfaceTintColor: Colors.transparent,
+      iconTheme: IconThemeData(color: kMuted),
     ),
-    cardTheme: CardThemeData(
-      color: kSurface,
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: kBorder),
-      ),
-    ),
+    cardColor: kSurface,
+    dividerColor: kBorder,
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: kSurface2,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: kBorder),
+        borderSide: BorderSide(color: kBorder),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: kBorder),
+        borderSide: BorderSide(color: kBorder),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
-        borderSide: const BorderSide(color: kGold, width: 1.5),
+        borderSide: BorderSide(color: kGold, width: 2),
       ),
-      labelStyle: const TextStyle(color: kMuted),
-      hintStyle: const TextStyle(color: kMuted),
-      prefixIconColor: kMuted,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     ),
-    dividerTheme: const DividerThemeData(color: kBorder, thickness: 1),
-    navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: kSurface,
-      indicatorColor: kGold.withValues(alpha: 0.15),
-      labelTextStyle: WidgetStateProperty.all(
-        const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 0.5),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: kGold,
+        foregroundColor: Colors.black,
+        elevation: 0,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
-      iconTheme: WidgetStateProperty.resolveWith((states) {
-        if (states.contains(WidgetState.selected)) {
-          return const IconThemeData(color: kGold);
-        }
-        return const IconThemeData(color: kMuted);
-      }),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        foregroundColor: kGold,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      ),
     ),
     chipTheme: ChipThemeData(
       backgroundColor: kSurface2,
-      selectedColor: kGold.withValues(alpha: 0.2),
-      side: const BorderSide(color: kBorder),
-      labelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      selectedColor: kGold.withOpacity(0.15),
+      side: BorderSide(color: kBorder),
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: kSurface,
+      indicatorColor: kGold.withOpacity(0.15),
+      labelTextStyle: WidgetStateProperty.all(const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+      iconTheme: WidgetStateProperty.resolveWith((states) {
+        if (states.contains(WidgetState.selected)) return IconThemeData(color: kGold);
+        return IconThemeData(color: kMuted);
+      }),
+    ),
+    textTheme: TextTheme(
+      bodyLarge: TextStyle(color: kText),
+      bodyMedium: TextStyle(color: kText),
+      bodySmall: TextStyle(color: kMuted),
+      titleLarge: TextStyle(color: kText, fontWeight: FontWeight.w900),
+      titleMedium: TextStyle(color: kText, fontWeight: FontWeight.w700),
+      titleSmall: TextStyle(color: kMuted, fontWeight: FontWeight.w600),
     ),
   );
 }

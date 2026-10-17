@@ -51,6 +51,9 @@ class AppState extends ChangeNotifier {
 
     // Load pending actions from Hive
     _loadQueue();
+    
+    // Load theme preference
+    await _loadTheme();
 
     await ApiClient().init();
     await ApiClient().updateBaseUrl(serverUrl);
@@ -275,3 +278,20 @@ class AppStateScope extends InheritedNotifier<AppState> {
     return scope!.notifier!;
   }
 }
+
+  // Theme preference
+  bool _isDarkMode = false;
+  bool get isDarkMode => _isDarkMode;
+
+  Future<void> toggleTheme() async {
+    _isDarkMode = !_isDarkMode;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isDarkMode', _isDarkMode);
+    notifyListeners();
+  }
+
+  Future<void> _loadTheme() async {
+    final prefs = await SharedPreferences.getInstance();
+    _isDarkMode = prefs.getBool('isDarkMode') ?? false;
+    notifyListeners();
+  }

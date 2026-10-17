@@ -127,6 +127,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
         const SizedBox(height: 20),
 
         // About
+        const SectionTitle('Appearance'),
+        const SizedBox(height: 10),
+        Panel(child: SwitchListTile(
+          value: state.isDarkMode,
+          onChanged: (_) => state.toggleTheme(),
+          title: const Text('Dark Mode', style: TextStyle(fontWeight: FontWeight.w700)),
+          subtitle: Text('Switch between light and dark theme', style: TextStyle(color: kMuted, fontSize: 11)),
+          activeColor: kGold,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+        )),
+        const SizedBox(height: 20),
+
+        // About
         Panel(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Eyebrow('About'),
           const SizedBox(height: 8),
