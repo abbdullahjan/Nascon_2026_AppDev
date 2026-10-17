@@ -34,12 +34,15 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
   Future<void> _check() async {
     final state = AppStateScope.of(context);
-    setState(() { _status = 'Checking server…'; _failed = false; });
+    setState(() { _status = 'Loading…'; _failed = false; });
+
+    // In demo mode health() always returns true — no server needed
     final ok = await ApiClient().health();
     if (!mounted) return;
+
     if (ok) {
       setState(() => _status = 'Ready');
-      await Future.delayed(const Duration(milliseconds: 400));
+      await Future.delayed(const Duration(milliseconds: 500));
       if (!mounted) return;
       if (state.isLoggedIn) {
         Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AppShell()));

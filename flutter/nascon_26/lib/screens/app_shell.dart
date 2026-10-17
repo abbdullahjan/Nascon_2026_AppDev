@@ -10,7 +10,6 @@ import 'store_screen.dart';
 import 'club_screen.dart';
 import 'sync_screen.dart';
 import 'settings_screen.dart';
-
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
   @override

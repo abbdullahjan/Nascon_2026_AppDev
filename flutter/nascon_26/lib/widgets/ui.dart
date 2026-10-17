@@ -312,23 +312,27 @@ class SyncStatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Color dot;
     String label;
     Widget leading;
     if (syncing) {
-      dot = kGold;
       label = 'Syncing...';
-      leading = SizedBox(width: 8, height: 8, child: CircularProgressIndicator(strokeWidth: 1.5, color: kGold));
+      leading = const SizedBox(
+        width: 8, height: 8,
+        child: CircularProgressIndicator(strokeWidth: 1.5, color: kGold),
+      );
     } else if (!online) {
-      dot = kOrange;
       label = pendingCount > 0 ? 'Offline · $pendingCount pending' : 'Offline';
-      leading = Container(width: 8, height: 8, decoration: const BoxDecoration(color: kOrange, shape: BoxShape.circle));
+      leading = Container(
+        width: 8, height: 8,
+        decoration: const BoxDecoration(color: kOrange, shape: BoxShape.circle),
+      );
     } else {
-      dot = kGreen;
       label = pendingCount > 0 ? 'Online · $pendingCount pending' : 'Online';
-      leading = Container(width: 8, height: 8, decoration: const BoxDecoration(color: kGreen, shape: BoxShape.circle));
+      leading = Container(
+        width: 8, height: 8,
+        decoration: const BoxDecoration(color: kGreen, shape: BoxShape.circle),
+      );
     }
-    _ = dot;
     return GestureDetector(
       onTap: onTap,
       child: Container(
