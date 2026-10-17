@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import '../core/app_state.dart';
+import '../core/theme.dart';
 import '../widgets/ui.dart';
 import 'home_screen.dart';
 import 'fixtures_screen.dart';
@@ -16,62 +18,76 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
-  int index = 0;
-  final pages = const [
-    HomeScreen(), FixturesScreen(), StandingsScreen(), StoreScreen(), ClubScreen()
+  int _index = 0;
+
+  final _pages = const [
+    HomeScreen(),
+    FixturesScreen(),
+    StandingsScreen(),
+    StoreScreen(),
+    ClubScreen(),
   ];
-  final titles = const ['Overview', 'Fixtures', 'Standings', 'Club Store', 'Club Profile'];
+
+  @override
+  void initState() {
+    super.initState();
+    // Watch connectivity changes
+    Connectivity().onConnectivityChanged.listen((_) {
+      final state = AppStateScope.of(context);
+      state.checkConnection().then((_) {
+        if (state.online && state.pendingActions.isNotEmpty) {
+          state.syncQueue();
+        }
+      });
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final state = AppStateScope.of(context);
     return Scaffold(
+      backgroundColor: kBg,
       appBar: AppBar(
-        titleSpacing: 20,
+        titleSpacing: 16,
         title: Row(children: [
-          Container(width: 34, height: 34, decoration: BoxDecoration(color: lime, borderRadius: BorderRadius.circular(11)),
-            child: const Icon(Icons.bolt_rounded, color: Color(0xFF10160E), size: 23)),
+          Container(
+            width: 30, height: 30,
+            decoration: BoxDecoration(color: kGold, borderRadius: BorderRadius.circular(8)),
+            child: const Icon(Icons.bolt_rounded, color: Colors.black, size: 18),
+          ),
           const SizedBox(width: 10),
-          const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('NEXUS', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
-            Text('LEAGUE OPERATIONS', style: TextStyle(fontSize: 8, color: muted, letterSpacing: 1.5)),
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('NEXUS',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: kText)),
+            Text(state.userName.toUpperCase(),
+                style: const TextStyle(fontSize: 8, color: kMuted, letterSpacing: 1.5, fontWeight: FontWeight.w600)),
           ]),
         ]),
         actions: [
-          IconButton(tooltip: 'Sync status', onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SyncScreen())), icon: Badge(label: Text('${state.pendingActions.length}'), isLabelVisible: state.pendingActions.isNotEmpty, child: const Icon(Icons.sync_rounded))),
-          IconButton(tooltip: 'Settings', onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())), icon: const Icon(Icons.tune_rounded)),
-          const SizedBox(width: 6),
+          SyncStatusChip(
+            online: state.online,
+            syncing: state.syncing,
+            pendingCount: state.pendingActions.length,
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SyncScreen())),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            icon: const Icon(Icons.settings_outlined, size: 20),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
+          ),
+          const SizedBox(width: 4),
         ],
       ),
-      body: Column(children: [
-        Container(
-          margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-          decoration: BoxDecoration(color: panel, borderRadius: BorderRadius.circular(14), border: Border.all(color: line)),
-          child: Row(children: [
-            Icon(state.online ? Icons.wifi_rounded : Icons.wifi_off_rounded, size: 16, color: state.online ? lime : Colors.orangeAccent),
-            const SizedBox(width: 8),
-            Text(state.online ? 'ONLINE' : 'OFFLINE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: state.online ? lime : Colors.orangeAccent, letterSpacing: 1)),
-            const SizedBox(width: 8),
-            const Text('•', style: TextStyle(color: muted)),
-            const SizedBox(width: 8),
-            Expanded(child: Text(state.userName, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, color: muted))),
-            Text(state.role, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700)),
-          ]),
-        ),
-        Expanded(child: IndexedStack(index: index, children: pages)),
-      ]),
+      body: IndexedStack(index: _index, children: _pages),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: index,
-        onDestinationSelected: (value) => setState(() => index = value),
-        backgroundColor: const Color(0xFF0F1411),
-        indicatorColor: lime.withValues(alpha: .16),
+        selectedIndex: _index,
+        onDestinationSelected: (i) => setState(() => _index = i),
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.grid_view_rounded), label: 'Overview'),
-          NavigationDestination(icon: Icon(Icons.sports_soccer_rounded), label: 'Fixtures'),
-          NavigationDestination(icon: Icon(Icons.leaderboard_rounded), label: 'Table'),
+          NavigationDestination(icon: Icon(Icons.grid_view_rounded), label: 'Home'),
+          NavigationDestination(icon: Icon(Icons.sports_rounded), label: 'Fixtures'),
+          NavigationDestination(icon: Icon(Icons.leaderboard_rounded), label: 'Standings'),
           NavigationDestination(icon: Icon(Icons.shopping_bag_outlined), label: 'Store'),
-          NavigationDestination(icon: Icon(Icons.shield_outlined), label: 'Club'),
+          NavigationDestination(icon: Icon(Icons.shield_rounded), label: 'Club'),
         ],
       ),
     );

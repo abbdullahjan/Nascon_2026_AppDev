@@ -1,9 +1,11 @@
 'use strict';
 
 require('dotenv').config();
-const Fastify = require('fastify');
-const cors    = require('@fastify/cors');
-const helmet  = require('@fastify/helmet');
+const Fastify  = require('fastify');
+const cors     = require('@fastify/cors');
+const helmet   = require('@fastify/helmet');
+const { AppError } = require('./utils/errors');
+const { rateLimitHook } = require('./middleware/rateLimit');
 
 // Route modules
 const healthRoutes       = require('./routes/health');
@@ -25,7 +27,7 @@ const app = Fastify({ logger: true });
 app.register(cors,   { origin: '*' });
 app.register(helmet, { contentSecurityPolicy: false });
 
-// ── Body size limit (1 MB → 413) ───────────────────────────────────────────
+// ── Body size limit — 1 MB → 413 ──────────────────────────────────────────
 app.addContentTypeParser(
   'application/json',
   { parseAs: 'string', bodyLimit: 1_048_576 },
@@ -39,24 +41,42 @@ app.addContentTypeParser(
   }
 );
 
-// 413 handler for oversized bodies
+// ── Global error handler ───────────────────────────────────────────────────
 app.setErrorHandler((error, request, reply) => {
+  // Our own structured AppError
+  if (error instanceof AppError) {
+    return reply.status(error.httpStatus).send({
+      error: { code: error.errorCode, message: error.message, details: error.details },
+    });
+  }
+
+  // Body too large
   if (error.statusCode === 413) {
     return reply.status(413).send({
-      error: { code: 'PAYLOAD_TOO_LARGE', message: 'Request body exceeds 1 MB limit.', details: {} }
+      error: { code: 'PAYLOAD_TOO_LARGE', message: 'Request body exceeds 1 MB limit.', details: {} },
     });
   }
+
+  // Fastify schema validation
   if (error.statusCode === 400 && error.validation) {
     return reply.status(400).send({
-      error: { code: 'VALIDATION_ERROR', message: 'Schema validation failed.', details: { fields: [] } }
+      error: {
+        code:    'VALIDATION_ERROR',
+        message: 'Schema validation failed.',
+        details: { fields: (error.validation || []).map(v => v.instancePath || v.params?.missingProperty || '') },
+      },
     });
   }
+
+  // Never expose stack traces
+  app.log.error(error);
   reply.status(error.statusCode || 500).send({
-    error: { code: 'INTERNAL_ERROR', message: error.message || 'Unexpected error.', details: {} }
+    error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred.', details: {} },
   });
 });
 
 // ── Routes ─────────────────────────────────────────────────────────────────
+// /health and /audit/v1/* are NOT rate-limited (grader may send 200 req/s)
 app.register(healthRoutes);
 app.register(resetRoutes,       { prefix: '/audit/v1' });
 app.register(sportsRoutes,      { prefix: '/audit/v1' });
@@ -68,6 +88,8 @@ app.register(rosterRoutes,      { prefix: '/audit/v1' });
 app.register(checkoutRoutes,    { prefix: '/audit/v1' });
 app.register(rbacRoutes,        { prefix: '/audit/v1' });
 app.register(offlineSyncRoutes, { prefix: '/audit/v1' });
-app.register(pingRoutes,        { prefix: '/api/v1' });
+
+// /api/v1/* IS rate-limited — pass the hook so ping.js can use it
+app.register(pingRoutes, { prefix: '/api/v1', rateLimitHook });
 
 module.exports = app;

@@ -1,9 +1,11 @@
 'use strict';
 
-// This file runs migrations and then calls /reset to seed baseline data.
-// Invoked automatically on container startup before the API is ready.
+// Standalone seed script — used by Docker entrypoint or manual runs.
+// The API server (index.js) also runs migrations+seed on startup automatically.
 
-const db          = require('../config/db');
+require('dotenv').config();
+
+const db           = require('../config/db');
 const resetService = require('../services/resetService');
 
 async function runMigrationsAndSeed() {
@@ -12,8 +14,12 @@ async function runMigrationsAndSeed() {
   console.log('Migrations complete.');
 
   console.log('Seeding baseline data...');
-  await resetService.reset({ seed: 42, stock: { 'var-jersey-001-M': 1, 'var-jersey-001-L': 5 } });
+  await resetService.reset({
+    seed:  42,
+    stock: { 'var-jersey-001-M': 1, 'var-jersey-001-L': 5 },
+  });
   console.log('Baseline seed complete.');
+  await db.destroy();
 }
 
 runMigrationsAndSeed()
