@@ -1,7 +1,7 @@
 'use strict';
 
 const rosterService = require('../services/rosterService');
-const { sendError }  = require('../utils/errors');
+const { sendError, AppError } = require('../utils/errors');
 
 // POST /audit/v1/roster/setup
 // POST /audit/v1/roster/transfer
@@ -13,8 +13,17 @@ async function rosterRoutes(fastify) {
     const body = request.body;
     if (!body) return sendError(reply, 400, 'VALIDATION_ERROR', 'Request body is required.', { fields: [] });
 
-    const result = await rosterService.setup(body);
-    return reply.status(201).send(result);
+    try {
+      const result = await rosterService.setup(body);
+      return reply.status(201).send(result);
+    } catch (err) {
+      if (err instanceof AppError) {
+        return reply.status(err.httpStatus).send({
+          error: { code: err.errorCode, message: err.message, details: err.details },
+        });
+      }
+      throw err;
+    }
   });
 
   // Transfer / loan / release a player
@@ -22,17 +31,34 @@ async function rosterRoutes(fastify) {
     const body = request.body;
     if (!body) return sendError(reply, 400, 'VALIDATION_ERROR', 'Request body is required.', { fields: [] });
 
-    const result = await rosterService.transfer(body);
-    return reply.status(result._isReplay ? 200 : 201).send(result.data);
+    try {
+      const result = await rosterService.transfer(body);
+      return reply.status(result._isReplay ? 200 : 201).send(result.data);
+    } catch (err) {
+      if (err instanceof AppError) {
+        return reply.status(err.httpStatus).send({
+          error: { code: err.errorCode, message: err.message, details: err.details },
+        });
+      }
+      throw err;
+    }
   });
 
   // Get immutable audit trail for a player
   fastify.get('/roster/history/:player_id', async (request, reply) => {
-    const { player_id } = request.params;
-    const { as_of }     = request.query;
-
-    const result = await rosterService.getHistory(player_id, as_of);
-    return reply.status(200).send(result);
+    try {
+      const { player_id } = request.params;
+      const { as_of } = request.query;
+      const result = await rosterService.getHistory(player_id, as_of);
+      return reply.status(200).send(result);
+    } catch (err) {
+      if (err instanceof AppError) {
+        return reply.status(err.httpStatus).send({
+          error: { code: err.errorCode, message: err.message, details: err.details },
+        });
+      }
+      throw err;
+    }
   });
 }
 
