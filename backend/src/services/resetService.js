@@ -78,11 +78,11 @@ const DEMO_USERS = [
  */
 async function reset({ seed = 42, stock = { 'var-jersey-001-M': 1, 'var-jersey-001-L': 5 } }) {
   await db.transaction(async (trx) => {
-    // Wipe all tables in dependency order (exact tables from migration)
+    // Wipe all tables in dependency order (exact tables from migrations 001 + 002)
     await trx.raw(`
       TRUNCATE TABLE
         offline_sync_results, offline_sync_requests,
-        orders,
+        order_items, orders,
         product_variants, products,
         roster_audit, player_registrations, players, squads,
         roster_live_matches, roster_leagues,
