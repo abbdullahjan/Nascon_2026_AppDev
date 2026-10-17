@@ -18,7 +18,7 @@ async function rbacRoutes(fastify) {
   const probe = (allowedRoles, scopeCheck) => async (request, reply) => {
     const authResult = await verifyJWT(request, reply);
     if (!authResult) return; // verifyJWT already replied with 401
-    const { role, tenantId, ownedIds } = authResult;
+    const { role, tenantId, ownedId } = authResult;
 
     const allowed = rbacService.checkProbe(role, tenantId, ownedIds, allowedRoles, scopeCheck, request.params);
     if (allowed) {

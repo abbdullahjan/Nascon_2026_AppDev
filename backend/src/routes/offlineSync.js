@@ -1,11 +1,8 @@
 'use strict';
 
 const offlineSyncService = require('../services/offlineSyncService');
-const { sendError }       = require('../utils/errors');
+const { sendError, AppError } = require('../utils/errors');
 
-// POST /audit/v1/offline-sync
-// Replays a batch of actions a mobile device queued while offline.
-// Always returns HTTP 200 — per-action conflicts reported inside the response body.
 async function offlineSyncRoutes(fastify) {
   fastify.post('/offline-sync', async (request, reply) => {
     const body = request.body;
@@ -15,9 +12,15 @@ async function offlineSyncRoutes(fastify) {
     if (body.actions.length < 1 || body.actions.length > 100) {
       return sendError(reply, 400, 'VALIDATION_ERROR', 'actions must contain 1–100 items.', { fields: ['actions'] });
     }
-
-    const result = await offlineSyncService.sync(body);
-    return reply.status(200).send(result);
+    try {
+      const result = await offlineSyncService.sync(body);
+      return reply.status(200).send(result);
+    } catch (err) {
+      if (err instanceof AppError) {
+        return reply.status(err.httpStatus).send({ error: { code: err.errorCode, message: err.message, details: err.details } });
+      }
+      throw err;
+    }
   });
 }
 
