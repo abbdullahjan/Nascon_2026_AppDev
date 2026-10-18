@@ -20,7 +20,7 @@ EXPOSE 8080
 
 # /health must return 200 within 120s on a clean start (24 retries x 5s)
 HEALTHCHECK --interval=5s --timeout=5s --retries=24 --start-period=30s \
-  CMD wget -qO- http://localhost:8080/health || exit 1
+  CMD wget -qO- http://127.0.0.1:8080/health || exit 1
 
 # Wait for Postgres, run migrations, then start the API
 CMD ["./start.sh"]

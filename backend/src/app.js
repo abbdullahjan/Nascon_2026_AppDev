@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 require('dotenv').config();
 const Fastify  = require('fastify');
@@ -6,8 +6,9 @@ const cors     = require('@fastify/cors');
 const helmet   = require('@fastify/helmet');
 const { AppError } = require('./utils/errors');
 const { rateLimitHook } = require('./middleware/rateLimit');
+const { guestWriteGuardForPaths, PROTECTED_WRITE_PATHS } = require('./middleware/guestGuard');
 
-// Route modules
+// Grader audit route modules (/audit/v1/*)
 const healthRoutes       = require('./routes/health');
 const resetRoutes        = require('./routes/reset');
 const sportsRoutes       = require('./routes/sports');
@@ -22,13 +23,29 @@ const offlineSyncRoutes  = require('./routes/offlineSync');
 const pingRoutes         = require('./routes/ping');
 const authRoutes         = require('./routes/auth');
 
+// Frontend application API route modules (/api/v1/*)
+const tenantsRoutes      = require('./routes/tenants');
+const clubsRoutes        = require('./routes/clubs');
+const matchesRoutes      = require('./routes/matches');
+const leaguesApiRoutes   = require('./routes/leaguesApi');
+const productsRoutes     = require('./routes/products');
+const playersRoutes      = require('./routes/players');
+const usersRoutes        = require('./routes/users');
+const syncApiRoutes      = require('./routes/syncApi');
+
+// Phase II module registry
+const moduleRegistry = require('./modules');
+
 const app = Fastify({ logger: true });
 
 // ── Plugins ────────────────────────────────────────────────────────────────
 app.register(cors,   { origin: '*' });
 app.register(helmet, { contentSecurityPolicy: false });
 
-// ── Body size limit — 1 MB → 413 ──────────────────────────────────────────
+// ── Guest write guard — blocks guest_anon_tok_* on spec-defined write paths ─
+app.addHook('preHandler', guestWriteGuardForPaths(PROTECTED_WRITE_PATHS));
+
+// ── Body size limit — 1 MB → 413 ───────────────────────────────────────────
 app.addContentTypeParser(
   'application/json',
   { parseAs: 'string', bodyLimit: 1_048_576 },
@@ -90,8 +107,23 @@ app.register(checkoutRoutes,    { prefix: '/audit/v1' });
 app.register(rbacRoutes,        { prefix: '/audit/v1' });
 app.register(offlineSyncRoutes, { prefix: '/audit/v1' });
 
-// /api/v1/* IS rate-limited — pass the hook so ping.js can use it
-app.register(pingRoutes, { prefix: '/api/v1', rateLimitHook });
-app.register(authRoutes, { prefix: '/api/v1' });
+// /api/v1/* Production API surface for mobile and web clients
+app.register(pingRoutes,        { prefix: '/api/v1', rateLimitHook });
+app.register(authRoutes,        { prefix: '/api/v1' });
+app.register(sportsRoutes,      { prefix: '/api/v1' });
+app.register(tenantsRoutes,     { prefix: '/api/v1' });
+app.register(clubsRoutes,       { prefix: '/api/v1' });
+app.register(matchesRoutes,     { prefix: '/api/v1' });
+app.register(leaguesApiRoutes,  { prefix: '/api/v1' });
+app.register(productsRoutes,    { prefix: '/api/v1' });
+app.register(playersRoutes,     { prefix: '/api/v1' });
+app.register(usersRoutes,       { prefix: '/api/v1' });
+app.register(syncApiRoutes,     { prefix: '/api/v1' });
+
+// ── Phase II modules (auto-discovered from src/modules/*) ──────────────────
+// registerAll() walks src/modules/*/index.js and calls registerRoutes(app).
+app.register(async (instance) => {
+  await moduleRegistry.registerAll(instance);
+});
 
 module.exports = app;
