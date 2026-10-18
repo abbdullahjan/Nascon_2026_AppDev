@@ -1,170 +1,370 @@
 import 'package:flutter/material.dart';
-import '../core/app_state.dart';
-import '../core/theme.dart';
-import '../widgets/ui.dart';
-import 'app_shell.dart';
+import '../core/api_client.dart';
+import '../core/secure_store.dart';
+import '../theme.dart';
+import 'role_home.dart';
+import 'settings_screen.dart';
 
+/// Screen 3: Login Screen
+/// Implements email + password inputs, show/hide toggle, inline validation,
+/// demo accounts quick-fill, backend rbac-matrix token fetch, fallback dummy token,
+/// and saves credentials into flutter_secure_storage.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
+
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _emailCtrl = TextEditingController();
-  final _passCtrl = TextEditingController();
-  bool _obscure = true;
-  bool _loading = false;
-  String? _error;
+  final _emailController = TextEditingController(text: 'admin@nascon.test');
+  final _passwordController = TextEditingController(text: 'Nascon@26');
+  bool _obscurePassword = true;
+  bool _isLoading = false;
+  String? _errorMessage;
+
+  // The 5 official demo accounts and their mapped roles
+  static const Map<String, String> _demoAccounts = {
+    'admin@nascon.test': 'super_admin',
+    'organizer@nascon.test': 'league_organizer',
+    'manager@nascon.test': 'club_manager',
+    'player@nascon.test': 'player',
+    'viewer@nascon.test': 'viewer',
+  };
 
   @override
   void dispose() {
-    _emailCtrl.dispose();
-    _passCtrl.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
-  Future<void> _login() async {
-    final email = _emailCtrl.text.trim();
-    final pass = _passCtrl.text;
-    if (email.isEmpty || pass.isEmpty) {
-      setState(() => _error = 'Please fill in your email and password');
+  void _fillAccount(String email) {
+    setState(() {
+      _emailController.text = email;
+      _passwordController.text = 'Nascon@26';
+      _errorMessage = null;
+    });
+  }
+
+  Future<void> _handleLogin() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    setState(() {
+      _errorMessage = null;
+    });
+
+    if (email.isEmpty || password.isEmpty) {
+      setState(() {
+        _errorMessage = 'Please enter both your email address and password.';
+      });
       return;
     }
-    setState(() { _loading = true; _error = null; });
-    try {
-      final state = AppStateScope.of(context);
-      await state.login(email, pass);
-      if (!mounted) return;
-      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AppShell()));
-    } catch (e) {
-      if (!mounted) return;
-      setState(() => _error = e.toString().replaceAll('Exception: ', ''));
-    } finally {
-      if (mounted) setState(() => _loading = false);
+
+    // Check against official demo accounts
+    final role = _demoAccounts[email.toLowerCase()];
+    if (role == null || password != 'Nascon@26') {
+      setState(() {
+        _errorMessage = 'Invalid email or password';
+      });
+      return;
     }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    String? token;
+
+    try {
+      // Call POST {baseUrl}/audit/v1/rbac-matrix
+      final matrix = await ApiClient().fetchRbacMatrix();
+      if (matrix != null && matrix['tokens'] is Map) {
+        final tokens = matrix['tokens'] as Map;
+        if (tokens[role] != null) {
+          token = tokens[role].toString();
+        }
+      }
+    } catch (_) {
+      // Network unreachable
+    }
+
+    // Fallback: If server is unreachable, store a dummy token so the UI can still be tested
+    token ??= 'dummy_token_${role}_nascon26';
+
+    // Store the JWT and role in flutter_secure_storage (never shared_preferences)
+    await SecureStore.saveAuth(
+      jwt: token,
+      role: role,
+      email: email,
+    );
+
+    if (!mounted) return;
+    setState(() {
+      _isLoading = false;
+    });
+
+    // Navigate to the role's home screen
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => RoleHomeScreen(role: role)),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kBg,
+      appBar: AppBar(
+        title: const Text('Sign In'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Settings & Server URL',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+              );
+            },
+          ),
+        ],
+      ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const SizedBox(height: 40),
-            // Logo
-            Row(children: [
-              Container(
-                width: 44, height: 44,
-                decoration: BoxDecoration(color: kGold, borderRadius: BorderRadius.circular(12)),
-                child: const Icon(Icons.bolt_rounded, color: Colors.black, size: 26),
-              ),
-              const SizedBox(width: 12),
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('NEXUS', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 2, color: kText)),
-                Text("NASCON '26", style: TextStyle(fontSize: 9, color: kMuted, letterSpacing: 2.5, fontWeight: FontWeight.w700)),
-              ]),
-            ]),
-            const SizedBox(height: 48),
-            Text('Welcome back', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900, color: kText, letterSpacing: -0.5)),
-            const SizedBox(height: 6),
-            Text('Sign in to your team account', style: TextStyle(color: kMuted, fontSize: 14)),
-            const SizedBox(height: 36),
-
-            // Email
-            Text('Email', style: TextStyle(color: kMuted, fontSize: 12, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _emailCtrl,
-              keyboardType: TextInputType.emailAddress,
-              textInputAction: TextInputAction.next,
-              decoration: const InputDecoration(
-                hintText: 'you@nascon.test',
-                prefixIcon: Icon(Icons.alternate_email_rounded),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Password
-            Text('Password', style: TextStyle(color: kMuted, fontSize: 12, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _passCtrl,
-              obscureText: _obscure,
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => _login(),
-              decoration: InputDecoration(
-                hintText: '••••••••',
-                prefixIcon: const Icon(Icons.lock_outline_rounded),
-                suffixIcon: IconButton(
-                  icon: Icon(_obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined),
-                  onPressed: () => setState(() => _obscure = !_obscure),
-                ),
-              ),
-            ),
-
-            if (_error != null) ...[
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: kRed.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: kRed.withValues(alpha: 0.3)),
-                ),
-                child: Row(children: [
-                  const Icon(Icons.error_outline_rounded, color: kRed, size: 16),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(_error!, style: const TextStyle(color: kRed, fontSize: 12))),
-                ]),
-              ),
-            ],
-
-            const SizedBox(height: 28),
-            PrimaryButton(label: 'Sign In', icon: Icons.login_rounded, onPressed: _login, loading: _loading),
-            const SizedBox(height: 40),
-
-            // Demo accounts
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: kSurface2,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: kBorder),
-              ),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Eyebrow('Demo accounts', color: kMuted),
-                const SizedBox(height: 10),
-                ...[
-                  ('Super Admin', 'admin@nascon.test'),
-                  ('Organizer', 'organizer@nascon.test'),
-                  ('Club Manager', 'manager@nascon.test'),
-                  ('Player', 'player@nascon.test'),
-                  ('Viewer', 'viewer@nascon.test'),
-                ].map((a) => Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: GestureDetector(
-                    onTap: () {
-                      _emailCtrl.text = a.$2;
-                      _passCtrl.text = 'Nascon@26';
-                    },
-                    child: Row(children: [
-                      Expanded(child: Text(a.$1,
-                          style: TextStyle(color: kMuted, fontSize: 11, fontWeight: FontWeight.w600))),
-                      Text(a.$2, style: const TextStyle(color: kGold, fontSize: 11)),
-                    ]),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // App Emblem
+                  Center(
+                    child: Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryMuted,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: AppColors.primary, width: 1.5),
+                      ),
+                      child: const Icon(
+                        Icons.sports_soccer_rounded,
+                        color: AppColors.primary,
+                        size: 34,
+                      ),
+                    ),
                   ),
-                )),
-                const SizedBox(height: 6),
-                Text('Password: Nascon@26 · Tap a row to fill',
-                    style: TextStyle(color: kBorder, fontSize: 10)),
-              ]),
+                  const SizedBox(height: 18),
+                  const Text(
+                    "NaSCon '26",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.5,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Multi-Sport League & Club Operations',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+
+                  // Email
+                  const Text(
+                    'Email Address',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
+                    decoration: const InputDecoration(
+                      hintText: 'user@nascon.test',
+                      prefixIcon: Icon(Icons.email_outlined, size: 20),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Password
+                  const Text(
+                    'Password',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _passwordController,
+                    obscureText: _obscurePassword,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => _handleLogin(),
+                    decoration: InputDecoration(
+                      hintText: '••••••••',
+                      prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+                          size: 20,
+                        ),
+                        tooltip:
+                            _obscurePassword ? 'Show password' : 'Hide password',
+                        onPressed: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
+                      ),
+                    ),
+                  ),
+
+                  // Plain-Language Error
+                  if (_errorMessage != null) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.error.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: AppColors.error.withValues(alpha: 0.4),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.error_outline_rounded,
+                            color: AppColors.error,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _errorMessage!,
+                              style: const TextStyle(
+                                color: AppColors.error,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
+                  const SizedBox(height: 24),
+
+                  // Sign In Button
+                  ElevatedButton(
+                    onPressed: _isLoading ? null : _handleLogin,
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
+                            ),
+                          )
+                        : const Text('Sign In to Platform'),
+                  ),
+                  const SizedBox(height: 28),
+
+                  // Demo Accounts Quick Selection
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(
+                                Icons.badge_outlined,
+                                size: 16,
+                                color: AppColors.textSecondary,
+                              ),
+                              SizedBox(width: 6),
+                              Text(
+                                'Demo Accounts (Tap to test role)',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              _demoChip('Super Admin', 'admin@nascon.test'),
+                              _demoChip('Organizer', 'organizer@nascon.test'),
+                              _demoChip('Manager', 'manager@nascon.test'),
+                              _demoChip('Player', 'player@nascon.test'),
+                              _demoChip('Viewer', 'viewer@nascon.test'),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          const Text(
+                            'Password: Nascon@26 for all accounts',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppColors.textTertiary,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ]),
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _demoChip(String roleName, String email) {
+    final isSelected = _emailController.text == email;
+    return ActionChip(
+      avatar: Icon(
+        Icons.person_pin_circle_rounded,
+        size: 14,
+        color: isSelected ? AppColors.primary : AppColors.textSecondary,
+      ),
+      label: Text(
+        '$roleName ($email)',
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+          color: isSelected ? AppColors.primary : AppColors.textPrimary,
+        ),
+      ),
+      onPressed: () => _fillAccount(email),
     );
   }
 }

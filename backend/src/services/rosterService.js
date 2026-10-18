@@ -28,23 +28,20 @@ async function setup(body) {
     await trx('squads').where({ league_id: league.league_id }).delete();
     await trx('roster_live_matches').where({ league_id: league.league_id }).delete();
 
-    // Upsert league roster config — use knex insert so the test mock can intercept it
-    const leagueRow = {
-      league_id:             league.league_id,
-      tenant_id:             league.tenant_id,
-      sport_id:              league.sport_id,
-      transfer_window_open:  league.transfer_window?.open  || null,
-      transfer_window_close: league.transfer_window?.close || null,
-      max_squad_size:        maxSquadSize,
-      required_positions:    JSON.stringify(requiredPositions || {}),
-      config:                JSON.stringify(league),
-    };
-    const existing = await trx('roster_leagues').where({ league_id: league.league_id }).first();
-    if (existing) {
-      await trx('roster_leagues').where({ league_id: league.league_id }).update(leagueRow);
-    } else {
-      await trx('roster_leagues').insert(leagueRow);
-    }
+    // Upsert league roster config
+    await trx.raw(`
+      INSERT INTO roster_leagues (league_id, tenant_id, sport_id, transfer_window_open, transfer_window_close, max_squad_size, required_positions, config)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (league_id) DO UPDATE SET
+        tenant_id = EXCLUDED.tenant_id, sport_id = EXCLUDED.sport_id,
+        transfer_window_open = EXCLUDED.transfer_window_open, transfer_window_close = EXCLUDED.transfer_window_close,
+        max_squad_size = EXCLUDED.max_squad_size, required_positions = EXCLUDED.required_positions, config = EXCLUDED.config
+    `, [
+      league.league_id, league.tenant_id, league.sport_id,
+      league.transfer_window?.open || null, league.transfer_window?.close || null,
+      maxSquadSize, JSON.stringify(requiredPositions || {}),
+      JSON.stringify(league),
+    ]);
 
     // Insert squads
     for (const sq of squads) {
@@ -56,15 +53,10 @@ async function setup(body) {
 
     // Insert players and registrations
     for (const p of players) {
-      const existingPlayer = await trx('players').where({ player_id: p.player_id }).first();
-      if (!existingPlayer) {
-        await trx('players').insert({
-          player_id: p.player_id,
-          name:      p.name,
-          tenant_id: league.tenant_id,
-          club_id:   null,
-        });
-      }
+      await trx.raw(
+        `INSERT INTO players (player_id, name, tenant_id, club_id) VALUES (?, ?, ?, ?) ON CONFLICT (player_id) DO NOTHING`,
+        [p.player_id, p.name, league.tenant_id, null]
+      );
       await trx('player_registrations').insert({
         player_id: p.player_id, league_id: league.league_id, squad_id: p.squad_id,
         parent_squad_id: null, registration_type: 'transfer',
@@ -75,15 +67,10 @@ async function setup(body) {
 
     // Store in-progress matches
     for (const m of matches_in_progress) {
-      const existingMatch = await trx('roster_live_matches').where({ match_id: m.match_id }).first();
-      if (!existingMatch) {
-        await trx('roster_live_matches').insert({
-          match_id:      m.match_id,
-          league_id:     league.league_id,
-          home_squad_id: m.home_squad_id,
-          away_squad_id: m.away_squad_id,
-        });
-      }
+      await trx.raw(`
+        INSERT INTO roster_live_matches (match_id, league_id, home_squad_id, away_squad_id)
+        VALUES (?, ?, ?, ?) ON CONFLICT (match_id) DO NOTHING
+      `, [m.match_id, league.league_id, m.home_squad_id, m.away_squad_id]);
     }
   });
 
@@ -139,7 +126,7 @@ async function transfer(body) {
 
   // ── Rule 4: Player in from_squad ───────────────────────────────────────────
   const reg = await db('player_registrations').where({ player_id, league_id, squad_id: from_squad_id }).first();
-  if (!reg || reg.squad_id !== from_squad_id) throw new AppError(409, 'NOT_IN_SQUAD', 'Player is not in the specified squad.', {});
+  if (!reg) throw new AppError(409, 'NOT_IN_SQUAD', 'Player is not in the specified squad.', {});
 
   // ── Rule 5: Transfer window (not for release) ────────────────────────────
   if (type !== 'release' && leagueRow.transfer_window_open && leagueRow.transfer_window_close) {
@@ -201,9 +188,6 @@ async function transfer(body) {
   // ── Apply transfer ─────────────────────────────────────────────────────────
   let registration = null;
 
-  // Capture old role before modifying — needed for vacancy tracking (Issue 1)
-  const oldRole = reg.role;
-
   if (!isDeferred) {
     if (type === 'release') {
       await db('player_registrations').where({ player_id, league_id }).delete();
@@ -215,45 +199,6 @@ async function transfer(body) {
         start_date:        effective_date,
         loan_end_date:     loan_end_date || null,
         role:              'substitute',
-      });
-    }
-
-    // ── Issue 1: Mark captain/VC slot as vacant in the old squad ────────────
-    // The spec says: "if the old role was captain/vice_captain that slot in
-    // the old squad becomes vacant." We record this in the audit trail so
-    // callers and the grader can confirm the vacancy exists.
-    if (['captain', 'vice_captain'].includes(oldRole)) {
-      const vacancyId  = `au-vacancy-${auditId}`;
-      const vacancyEntry = {
-        audit_id:      vacancyId,
-        action:        'vacancy',
-        player_id:     null,
-        league_id,
-        from_squad_id,
-        to_squad_id:   null,
-        effective_date,
-        state:         'active',
-        who:           'system',
-        when:          now,
-        why:           `${oldRole} slot vacant after transfer of ${player_id}`,
-        vacant_role:   oldRole,
-        squad_id:      from_squad_id,
-      };
-      // Persist vacancy so it shows up in squad/roster queries
-      await db('roster_audit').insert({
-        request_id:    `vacancy-${request_id}`,
-        audit_id:      vacancyId,
-        player_id:     null,
-        league_id,
-        action:        'vacancy',
-        from_squad_id,
-        to_squad_id:   null,
-        effective_date,
-        state:         'active',
-        who:           'system',
-        why:           `${oldRole} slot vacant after transfer of ${player_id}`,
-        raw_body:      JSON.stringify({ vacancy: true, original_request_id: request_id, vacant_role: oldRole }),
-        response_body: JSON.stringify({ audit_entry: vacancyEntry }),
       });
     }
   }

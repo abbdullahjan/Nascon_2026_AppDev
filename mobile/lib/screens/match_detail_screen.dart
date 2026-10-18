@@ -1,384 +1,736 @@
 import 'package:flutter/material.dart';
-import '../core/api_client.dart';
-import '../core/app_state.dart';
-import '../core/theme.dart';
-import '../widgets/ui.dart';
+import 'package:uuid/uuid.dart';
+import '../models/match.dart';
+import '../models/product.dart';
+import '../services/api_service.dart';
+import '../theme.dart';
 
+/// Screen 3: Match Detail Screen
+/// Live score projection, event-sourced timeline, and pinned merchandise checkout.
 class MatchDetailScreen extends StatefulWidget {
-  const MatchDetailScreen({super.key, required this.matchId, required this.fixture});
-  final String matchId;
-  final Map<String, dynamic> fixture;
+  final String? matchId;
+  final MatchModel? initialMatch;
+
+  const MatchDetailScreen({
+    super.key,
+    this.matchId,
+    this.initialMatch,
+  });
+
   @override
   State<MatchDetailScreen> createState() => _MatchDetailScreenState();
 }
 
 class _MatchDetailScreenState extends State<MatchDetailScreen> {
-  Map<String, dynamic>? _score;
-  bool _loading = true;
-  String? _error;
+  final ApiService _apiService = ApiService();
+  bool _isLoading = true;
+  String? _errorMessage;
+  MatchModel? _match;
+  List<MatchEventModel> _events = [];
+
+  String get _activeMatchId => widget.matchId ?? widget.initialMatch?.matchId ?? 'match-alpha-1';
 
   @override
   void initState() {
     super.initState();
-    _loadScore();
+    _match = widget.initialMatch;
+    _loadMatchDetails();
   }
 
-  Future<void> _loadScore() async {
-    final state = AppStateScope.of(context);
-    setState(() { _loading = true; _error = null; });
-    if (state.online) {
-      try {
-        final data = await ApiClient().getScore(widget.matchId);
-        await state.cacheData('score_${widget.matchId}', data);
-        setState(() { _score = data; _loading = false; });
-      } catch (e) {
-        _loadCached(state);
-        setState(() => _loading = false);
-      }
-    } else {
-      _loadCached(state);
-      setState(() => _loading = false);
-    }
-  }
+  Future<void> _loadMatchDetails() async {
+    setState(() {
+      _isLoading = _match == null;
+      _errorMessage = null;
+    });
 
-  void _loadCached(AppState state) {
-    final cached = state.getCached('score_${widget.matchId}');
-    if (cached != null) {
-      _score = Map<String, dynamic>.from(cached['data'] as Map? ?? {});
-    }
-  }
-
-  String _outcomeLabel(String? outcome) {
-    switch (outcome) {
-      case 'home_win': return 'Home Win';
-      case 'away_win': return 'Away Win';
-      case 'draw': return 'Draw';
-      case 'undecided': return 'Undecided';
-      default: return '—';
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final state = AppStateScope.of(context);
-    final fixture = widget.fixture;
-    final score = _score;
-    final status = score?['status'] as String? ?? fixture['status'] as String? ?? 'upcoming';
-    final isLive = status == 'in_progress';
-    final isOrganizer = state.isOrganizer;
-
-    return Scaffold(
-      backgroundColor: kBg,
-      appBar: AppBar(
-        title: const Text('Match Centre'),
-        actions: [
-          IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _loadScore),
-        ],
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator(color: kGold))
-          : RefreshIndicator(
-              color: kGold, backgroundColor: kSurface,
-              onRefresh: _loadScore,
-              child: ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 80), children: [
-                if (!state.online) OfflineBanner(),
-
-                // Score header
-                GoldBanner(height: 180, child: Column(children: [
-                  Row(children: [
-                    Eyebrow(fixture['sport'] as String? ?? 'sport'),
-                    const Spacer(),
-                    if (isLive) ...[const LiveDot(), const SizedBox(width: 6)],
-                    StatusBadge(matchStatusLabel(status), color: matchStatusColor(status)),
-                  ]),
-                  const Spacer(),
-                  Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-                    Expanded(child: Column(children: [
-                      TeamAvatar(fixture['home'] as String? ?? '?', size: 52),
-                      const SizedBox(height: 8),
-                      Text(fixture['home'] as String? ?? '',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
-                    ])),
-                    Column(children: [
-                      Text(
-                        score != null
-                            ? '${(score['home'] as Map?)?['score'] ?? 0}  —  ${(score['away'] as Map?)?['score'] ?? 0}'
-                            : '—',
-                        style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900, color: kText),
-                      ),
-                      if (status == 'completed')
-                        Text(_outcomeLabel(score?['outcome'] as String?),
-                            style: const TextStyle(color: kGold, fontSize: 11, fontWeight: FontWeight.w700)),
-                    ]),
-                    Expanded(child: Column(children: [
-                      TeamAvatar(fixture['away'] as String? ?? '?', size: 52, color: Colors.lightBlueAccent),
-                      const SizedBox(height: 8),
-                      Text(fixture['away'] as String? ?? '',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
-                    ])),
-                  ]),
-                  const Spacer(),
-                ])),
-
-                const SizedBox(height: 16),
-
-                // Organizer controls
-                if (isOrganizer) ...[
-                  const SectionTitle('Match Controls'),
-                  const SizedBox(height: 10),
-                  _OrganizerControls(
-                    matchId: widget.matchId,
-                    status: status,
-                    fixture: fixture,
-                    score: score,
-                    sports: state.sports,
-                    onRefresh: _loadScore,
-                  ),
-                  const SizedBox(height: 16),
-                ],
-
-                // Innings details (cricket)
-                if (score != null && (score['home'] as Map?)?['wickets'] != null) ...[
-                  Panel(child: Column(children: [
-                    const SectionTitle('Innings'),
-                    const SizedBox(height: 10),
-                    _inningsRow('Home', score['home'] as Map),
-                    Divider(color: kBorder, height: 16),
-                    _inningsRow('Away', score['away'] as Map),
-                  ])),
-                  const SizedBox(height: 16),
-                ],
-
-                // Event timeline
-                const SectionTitle('Event Timeline'),
-                const SizedBox(height: 10),
-                if (score == null || (score['events'] as List?)?.isEmpty == true)
-                  const Panel(child: EmptyState(icon: Icons.timeline_rounded, title: 'No events yet',
-                      subtitle: 'Score events will appear here once the match starts.'))
-                else
-                  Panel(
-                    padding: EdgeInsets.zero,
-                    child: Column(
-                      children: ((score!['events'] as List?) ?? []).asMap().entries.map((e) {
-                        final ev = e.value as Map<String, dynamic>;
-                        final compensated = ev['compensated'] == true;
-                        return _EventRow(event: ev, compensated: compensated,
-                            isLast: e.key == (score['events'] as List).length - 1);
-                      }).toList(),
-                    ),
-                  ),
-
-                const SizedBox(height: 16),
-                // Pinned product
-                const SectionTitle('Pinned Merchandise'),
-                const SizedBox(height: 10),
-                Panel(child: Row(children: [
-                  Container(width: 48, height: 48,
-                    decoration: BoxDecoration(color: kGold.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
-                    child: const Icon(Icons.checkroom_rounded, color: kGold)),
-                  const SizedBox(width: 12),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    const Text('Alpha Matchday Jersey', style: TextStyle(fontWeight: FontWeight.w700)),
-                    Text('PKR 4,500.00 · M / L', style: TextStyle(color: kMuted, fontSize: 11)),
-                  ])),
-                  const Icon(Icons.push_pin_outlined, color: kGold, size: 18),
-                ])),
-              ]),
-            ),
-    );
-  }
-
-  Widget _inningsRow(String label, Map data) => Row(children: [
-    Text(label, style: TextStyle(color: kMuted, fontSize: 12, fontWeight: FontWeight.w600)),
-    const Spacer(),
-    Text('${data['score']}/${data['wickets']}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-    const SizedBox(width: 8),
-    Text('(${data['overs']} ov)', style: TextStyle(color: kMuted, fontSize: 12)),
-  ]);
-}
-
-// ── Event row in timeline ─────────────────────────────────────────────────
-class _EventRow extends StatelessWidget {
-  const _EventRow({required this.event, required this.compensated, required this.isLast});
-  final Map<String, dynamic> event;
-  final bool compensated;
-  final bool isLast;
-
-  @override
-  Widget build(BuildContext context) {
-    final type = event['type'] as String? ?? '';
-    final payload = event['payload'] as Map<String, dynamic>? ?? {};
-    final seq = event['sequence'] as int? ?? 0;
-    final isCompensation = type == 'compensation';
-
-    Color accentColor = kGold;
-    IconData icon = Icons.fiber_manual_record_rounded;
-    if (type == 'score') { accentColor = kGreen; icon = Icons.add_circle_outline_rounded; }
-    if (type == 'match_start') { accentColor = kBlue; icon = Icons.play_circle_outline_rounded; }
-    if (type == 'match_end') { accentColor = kMuted; icon = Icons.stop_circle_outlined; }
-    if (compensated || isCompensation) accentColor = kRed;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        border: isLast ? null : Border(bottom: BorderSide(color: kBorder)),
-      ),
-      child: Row(children: [
-        Container(
-          width: 26, height: 26,
-          decoration: BoxDecoration(
-            color: accentColor.withValues(alpha: 0.12),
-            shape: BoxShape.circle,
-          ),
-          child: Center(child: Text('$seq', style: TextStyle(color: accentColor, fontSize: 9, fontWeight: FontWeight.w900))),
-        ),
-        const SizedBox(width: 10),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(
-            isCompensation ? 'CORRECTION' : type.toUpperCase().replaceAll('_', ' '),
-            style: TextStyle(
-              color: compensated ? kRed : (isCompensation ? kRed : accentColor),
-              fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.8,
-              decoration: compensated ? TextDecoration.lineThrough : null,
-            ),
-          ),
-          if (payload.isNotEmpty)
-            Text(
-              payload.entries.map((e) => '${e.key}: ${e.value}').join(' · '),
-              style: TextStyle(
-                color: kMuted, fontSize: 11,
-                decoration: compensated ? TextDecoration.lineThrough : null,
-              ),
-              maxLines: 1, overflow: TextOverflow.ellipsis,
-            ),
-        ])),
-        if (compensated)
-          const StatusBadge('OVERTURNED', color: kRed),
-      ]),
-    );
-  }
-}
-
-// ── Organizer controls ────────────────────────────────────────────────────
-class _OrganizerControls extends StatefulWidget {
-  const _OrganizerControls({required this.matchId, required this.status, required this.fixture, required this.score, required this.sports, required this.onRefresh});
-  final String matchId, status;
-  final Map<String, dynamic> fixture;
-  final Map<String, dynamic>? score;
-  final List<Map<String, dynamic>> sports;
-  final VoidCallback onRefresh;
-  @override
-  State<_OrganizerControls> createState() => _OrganizerControlsState();
-}
-
-class _OrganizerControlsState extends State<_OrganizerControls> {
-  bool _busy = false;
-  String? _selectedTeam;
-  String? _selectedEvent;
-
-  Future<void> _sendEvent(AppState state, String type, {Map<String, dynamic>? payload}) async {
-    setState(() => _busy = true);
     try {
-      final eventId = 'evt_${DateTime.now().microsecondsSinceEpoch}';
-      await ApiClient().postEvent({'event_id': eventId, 'match_id': widget.matchId, 'type': type, 'payload': payload ?? {}});
-      widget.onRefresh();
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$type applied ✓')));
+      final matchDetail = await _apiService.getMatchDetail(_activeMatchId);
+      final events = await _apiService.getMatchEvents(_activeMatchId);
+
+      if (!mounted) return;
+      setState(() {
+        if (matchDetail != null) {
+          _match = matchDetail;
+        }
+        _events = events;
+        _isLoading = false;
+      });
     } catch (e) {
       if (!mounted) return;
-      final msg = ApiClient.errorMessage(e);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg), backgroundColor: kRed));
+      setState(() {
+        if (_match == null) {
+          _errorMessage = 'Unable to load match details.';
+        }
+        _isLoading = false;
+      });
     }
-    setState(() => _busy = false);
-  }
-
-  Future<void> _queueOffline(AppState state) async {
-    if (_selectedTeam == null || _selectedEvent == null) return;
-    final version = (widget.score?['version'] as int?) ?? 0;
-    await state.queueScoreEvent(
-      matchId: widget.matchId, teamId: _selectedTeam!,
-      eventType: _selectedEvent!, baseVersion: version,
-    );
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Score queued for sync ✓')));
   }
 
   @override
   Widget build(BuildContext context) {
-    final state = AppStateScope.of(context);
-    final sportId = widget.score?['sport_id'] as String? ?? widget.fixture['sport'] as String? ?? 'football';
-
-    final sportConfig = widget.sports.firstWhere(
-      (s) => s['sport_id'] == sportId,
-      orElse: () => <String, dynamic>{'scoring_events': <String, dynamic>{}},
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: Text(
+          _match != null ? '${_match!.homeTeamName} vs ${_match!.awayTeamName}' : 'Match Details',
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded),
+            tooltip: 'Refresh Score',
+            onPressed: _loadMatchDetails,
+          ),
+        ],
+      ),
+      body: _buildBody(),
     );
-    final scoringEvents = sportConfig['scoring_events'] as Map<String, dynamic>? ?? {};
-    final events = scoringEvents.keys.toList();
+  }
 
-    final homeTeam = widget.fixture['home'] as String? ?? 'home';
-    final awayTeam = widget.fixture['away'] as String? ?? 'away';
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
+      );
+    }
 
-    return Panel(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const Eyebrow('Organizer controls', color: kGold),
-      const SizedBox(height: 12),
-      if (widget.status == 'upcoming') ...[
-        GhostButton(label: 'Start Match', icon: Icons.play_arrow_rounded,
-            onPressed: _busy ? null : () => _sendEvent(state, 'match_start')),
-      ] else if (widget.status == 'in_progress') ...[
-        // Team selector
-        Row(children: [homeTeam, awayTeam].map((t) => Expanded(child: Padding(
-          padding: EdgeInsets.only(right: t == homeTeam ? 6 : 0),
-          child: GestureDetector(
-            onTap: () => setState(() => _selectedTeam = t),
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              decoration: BoxDecoration(
-                color: _selectedTeam == t ? kGold.withValues(alpha: 0.15) : kSurface2,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: _selectedTeam == t ? kGold.withValues(alpha: 0.5) : kBorder),
+    if (_errorMessage != null && _match == null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline_rounded, size: 48, color: AppColors.error),
+              const SizedBox(height: 12),
+              Text(_errorMessage!, style: const TextStyle(color: AppColors.textSecondary)),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _loadMatchDetails,
+                child: const Text('Retry'),
               ),
-              child: Text(t, textAlign: TextAlign.center,
-                  style: TextStyle(color: _selectedTeam == t ? kGold : kMuted,
-                      fontWeight: FontWeight.w700, fontSize: 12)),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final match = _match!;
+
+    return RefreshIndicator(
+      color: AppColors.primary,
+      backgroundColor: AppColors.surface,
+      onRefresh: _loadMatchDetails,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _buildScoreboardHeader(match),
+          const SizedBox(height: 16),
+          if (match.pinnedProduct != null) ...[
+            _buildPinnedProductCard(match.pinnedProduct!),
+            const SizedBox(height: 16),
+          ],
+          _buildEventsTimelineSection(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScoreboardHeader(MatchModel match) {
+    Color statusColor = AppColors.textSecondary;
+    String statusLabel = 'Scheduled';
+
+    if (match.isLive) {
+      statusColor = AppColors.primary;
+      statusLabel = '● LIVE IN PROGRESS';
+    } else if (match.isCompleted) {
+      statusColor = AppColors.secondary;
+      statusLabel = 'FULL TIME MATCH RESULT';
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: match.isLive ? AppColors.primary.withValues(alpha: 0.3) : AppColors.border,
+          width: 1.5,
+        ),
+        boxShadow: [
+          if (match.isLive)
+            BoxShadow(
+              color: AppColors.primary.withValues(alpha: 0.08),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // League & Sport Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceElevated,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '${match.sportId.toUpperCase()} • ${match.leagueId}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  statusLabel,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: statusColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+
+          // Teams & Big Score
+          Row(
+            children: [
+              // Home Team
+              Expanded(
+                child: Column(
+                  children: [
+                    CircleAvatar(
+                      radius: 26,
+                      backgroundColor: AppColors.surfaceElevated,
+                      child: Text(
+                        match.homeTeamName.isNotEmpty ? match.homeTeamName[0] : 'H',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      match.homeTeamName,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Score Numbers
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  match.score != null
+                      ? '${match.score!.homeScore}   :   ${match.score!.awayScore}'
+                      : 'VS',
+                  style: const TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+
+              // Away Team
+              Expanded(
+                child: Column(
+                  children: [
+                    CircleAvatar(
+                      radius: 26,
+                      backgroundColor: AppColors.surfaceElevated,
+                      child: Text(
+                        match.awayTeamName.isNotEmpty ? match.awayTeamName[0] : 'A',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.secondary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      match.awayTeamName,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          if (match.isCompleted && match.score != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceElevated,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                match.score!.winnerTeamId != null
+                    ? 'Winner: ${match.score!.winnerTeamId == match.homeTeam ? match.homeTeamName : match.awayTeamName}'
+                    : 'Result: Draw',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.gold,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPinnedProductCard(PinnedProduct product) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.gold.withValues(alpha: 0.4), width: 1.2),
+        gradient: LinearGradient(
+          colors: [
+            AppColors.surface,
+            AppColors.gold.withValues(alpha: 0.04),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: AppColors.gold.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(
+              Icons.shopping_bag_rounded,
+              color: AppColors.gold,
+              size: 28,
             ),
           ),
-        ))).toList()),
-        const SizedBox(height: 10),
-        // Event type dropdown
-        DropdownButtonFormField<String>(
-          value: _selectedEvent,
-          dropdownColor: kSurface2,
-          decoration: const InputDecoration(hintText: 'Select event type', prefixIcon: Icon(Icons.sports_rounded)),
-          items: events.map((e) => DropdownMenuItem(value: e,
-              child: Text(e.replaceAll('_', ' ').toUpperCase(),
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)))).toList(),
-          onChanged: (v) => setState(() => _selectedEvent = v),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.gold,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Text(
+                        'MATCH MERCH',
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textInverse,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  product.name,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                Text(
+                  product.formattedPrice,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.gold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.gold,
+              foregroundColor: AppColors.textInverse,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              minimumSize: const Size(80, 42),
+            ),
+            onPressed: () => _openQuickCheckoutModal(product),
+            child: const Text(
+              'Buy Now',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEventsTimelineSection() {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.timeline_rounded, size: 20, color: AppColors.secondary),
+                  SizedBox(width: 8),
+                  Text(
+                    'Event Timeline',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              Text(
+                '${_events.length} Events',
+                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          if (_events.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                child: Text(
+                  'No match events recorded yet.',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                ),
+              ),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _events.length,
+              separatorBuilder: (_, __) => const Divider(color: AppColors.borderSubtle, height: 16),
+              itemBuilder: (context, index) {
+                final ev = _events[index];
+                return _buildTimelineEventRow(ev);
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTimelineEventRow(MatchEventModel ev) {
+    final eventType = ev.payload['event_type'] ?? ev.type;
+    final teamId = ev.payload['team_id'] ?? '';
+    final isHomeTeam = _match != null && teamId == _match!.homeTeam;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: ev.compensated ? AppColors.error.withValues(alpha: 0.12) : AppColors.surfaceElevated,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: ev.compensated ? AppColors.error : AppColors.border,
+              width: 1,
+            ),
+          ),
+          child: Center(
+            child: Text(
+              '#${ev.sequence}',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: ev.compensated ? AppColors.error : AppColors.textSecondary,
+              ),
+            ),
+          ),
         ),
-        const SizedBox(height: 12),
-        Row(children: [
-          Expanded(child: GhostButton(
-            label: state.online ? 'Record Event' : 'Queue Offline',
-            icon: state.online ? Icons.add_rounded : Icons.offline_pin_rounded,
-            onPressed: _busy ? null : () {
-              if (_selectedTeam == null || _selectedEvent == null) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Select team and event first')));
-                return;
-              }
-              if (state.online) {
-                _sendEvent(state, 'score', payload: {'team_id': _selectedTeam!, 'event_type': _selectedEvent!});
-              } else {
-                _queueOffline(state);
-              }
-            },
-          )),
-          const SizedBox(width: 10),
-          Expanded(child: GhostButton(label: 'End Match', icon: Icons.stop_circle_outlined,
-              onPressed: _busy ? null : () => _sendEvent(state, 'match_end'))),
-        ]),
-      ] else if (widget.status == 'completed') ...[
-        Text('Match completed. You can still add compensation events.',
-            style: TextStyle(color: kMuted, fontSize: 12)),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    eventType.toString().toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      decoration: ev.compensated ? TextDecoration.lineThrough : null,
+                      color: ev.compensated ? AppColors.textSecondary : AppColors.textPrimary,
+                    ),
+                  ),
+                  if (ev.compensated) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.error.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: const Text(
+                        'DISALLOWED / COMPENSATED',
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.error,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Team: ${isHomeTeam ? _match!.homeTeamName : (_match != null ? _match!.awayTeamName : teamId)}',
+                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+            ],
+          ),
+        ),
       ],
-    ]));
+    );
+  }
+
+  // ── Quick Checkout Modal ───────────────────────────────────────────────────
+
+  void _openQuickCheckoutModal(PinnedProduct product) {
+    bool isSubmitting = false;
+    String? statusMessage;
+    OrderReceipt? completedReceipt;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Purchase Match Gear',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                  const Divider(color: AppColors.borderSubtle),
+                  const SizedBox(height: 8),
+
+                  if (completedReceipt == null) ...[
+                    Row(
+                      children: [
+                        const Icon(Icons.check_circle_outline, color: AppColors.gold, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            product.name,
+                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        Text(
+                          product.formattedPrice,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.gold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Payment Method: NaSCon Mock Payment Gateway (tok_success)',
+                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    ),
+                    const SizedBox(height: 20),
+                    if (statusMessage != null) ...[
+                      Text(
+                        statusMessage!,
+                        style: const TextStyle(fontSize: 13, color: AppColors.error),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: AppColors.textInverse,
+                        ),
+                        onPressed: isSubmitting
+                            ? null
+                            : () async {
+                                setModalState(() {
+                                  isSubmitting = true;
+                                  statusMessage = null;
+                                });
+
+                                try {
+                                  final orderId = 'ord-${const Uuid().v4().substring(0, 8)}';
+                                  final result = await _apiService.checkout(
+                                    orderId: orderId,
+                                    customerId: 'cust-demo-1',
+                                    items: [
+                                      {
+                                        'variant_id': product.variantId ?? 'var-jersey-001-M',
+                                        'quantity': 1,
+                                      }
+                                    ],
+                                    paymentToken: 'tok_success',
+                                  );
+
+                                  setModalState(() {
+                                    isSubmitting = false;
+                                    completedReceipt = result.receipt;
+                                  });
+                                } catch (err) {
+                                  setModalState(() {
+                                    isSubmitting = false;
+                                    statusMessage = 'Order failed: $err';
+                                  });
+                                }
+                              },
+                        child: isSubmitting
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.textInverse),
+                              )
+                            : const Text('Confirm Order (4500.00 PKR)'),
+                      ),
+                    ),
+                  ] else ...[
+                    // Order Success Receipt View
+                    const Center(
+                      child: Column(
+                        children: [
+                          Icon(Icons.verified_rounded, size: 54, color: AppColors.primary),
+                          SizedBox(height: 10),
+                          Text(
+                            'Order Successful!',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.primary),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Verified Cryptographic Receipt Generated',
+                            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceElevated,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Order ID: ${completedReceipt!.orderId}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                          const SizedBox(height: 4),
+                          Text('Total: ${completedReceipt!.formattedTotal}', style: const TextStyle(color: AppColors.gold, fontWeight: FontWeight.w800)),
+                          const SizedBox(height: 4),
+                          Text(
+                            'HMAC Signature: ${completedReceipt!.signature.substring(0, 16)}...',
+                            style: const TextStyle(fontFamily: 'monospace', fontSize: 11, color: AppColors.textTertiary),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text('Close'),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 }
