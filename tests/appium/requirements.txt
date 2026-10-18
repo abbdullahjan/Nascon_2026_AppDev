@@ -1,0 +1,7 @@
+# Appium 2 test suite dependencies
+# Install with: pip install -r tests/appium/requirements.txt
+Appium-Python-Client==3.2.1
+pytest==8.3.2
+pytest-xdist==3.6.1
+requests==2.32.3
+selenium==4.23.1
