@@ -28,6 +28,55 @@ services:
       retries: 10
       start_period: 5s
 
+  # ── RustFS (S3-compatible object storage — replaces MinIO) ───────────────────
+  # RustFS is S3-compatible; access via AWS SDK with S3_ENDPOINT=http://rustfs:9000
+  rustfs:
+    image: rustfs/rustfs:latest
+    restart: unless-stopped
+    environment:
+      RUSTFS_ACCESS_KEY: ${S3_ACCESS_KEY:-rustfsadmin}
+      RUSTFS_SECRET_KEY: ${S3_SECRET_KEY:-rustfsadmin}
+    ports:
+      - "9000:9000"
+    volumes:
+      - rustfs_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9000/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  # ── MediaMTX — RTMP ingest (1935), HLS playback (8888), WebRTC WHIP/WHEP (8889)
+  # Spec 6.1 fixed ports — do not change.
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    restart: unless-stopped
+    ports:
+      - "1935:1935"   # RTMP ingest
+      - "8888:8888"   # HLS + WebRTC playback (HTTP)
+      - "8889:8889"   # WebRTC WHIP/WHEP (HTTP)
+      - "8890:8890"   # WebRTC WHIP/WHEP (HTTPS, optional)
+    environment:
+      MTX_LOGLEVEL:         info
+      # Allow unauthenticated ingest for development; stream key auth handled by API
+      MTX_AUTHMETHOD:       none
+      # HLS segment settings for low-latency (<3s glass-to-glass)
+      MTX_HLSSEGMENTCOUNT:  3
+      MTX_HLSSEGMENTDURATION: 1s
+      MTX_HLSPARTDURATION:  200ms
+      # Record streams to /recordings for VOD indexing
+      MTX_RECORD:           "yes"
+      MTX_RECORDPATH:       /recordings/%path/%Y-%m-%d_%H-%M-%S-%f
+    volumes:
+      - mediamtx_recordings:/recordings
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8888/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
   # ── NaSCon '26 Backend API ───────────────────────────────────────────────────
   api:
     build: ./backend
@@ -36,18 +85,110 @@ services:
     ports:
       - "8080:8080"
     environment:
-      NODE_ENV:      production
-      PORT:          8080
-      DATABASE_URL:  postgresql://nascon:nascon_pass@postgres:5432/nascon_db
-      REDIS_URL:     redis://redis:6379
-      JWT_SECRET:    ${JWT_SECRET:-change-this-in-production}
+      NODE_ENV:       production
+      PORT:           8080
+      DATABASE_URL:   postgresql://nascon:nascon_pass@postgres:5432/nascon_db
+      REDIS_URL:      redis://redis:6379
+      JWT_SECRET:     ${JWT_SECRET:-change-this-in-production}
       JWT_EXPIRES_IN: 2h
-      DAY1_SALT:     ${DAY1_SALT}   # Never hard-coded — injected from host env
+      # Competition salts — injected from host env, NEVER hard-coded here
+      DAY1_SALT:      ${DAY1_SALT}
+      DAY2_SALT:      ${DAY2_SALT}
+      # RustFS (S3-compatible) object storage
+      S3_ENDPOINT:    http://rustfs:9000
+      S3_BUCKET:      ${S3_BUCKET:-nascon}
+      S3_ACCESS_KEY:  ${S3_ACCESS_KEY:-rustfsadmin}
+      S3_SECRET_KEY:  ${S3_SECRET_KEY:-rustfsadmin}
+      S3_REGION:      us-east-1
+      # MediaMTX addresses (used by streaming module to build ingest/playback URLs)
+      MEDIA_HOST:     localhost
+      MEDIA_RTMP_PORT:  1935
+      MEDIA_HLS_PORT:   8888
+      MEDIA_WEBRTC_PORT: 8889
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      rustfs:
+        condition: service_healthy
+      mediamtx:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  # ── Selenium Grid 4 Hub ──────────────────────────────────────────────────────
+  # Spec 6.1: must bind port 4444. GET http://localhost:4444/status → ready: true
+  selenium-hub:
+    image: selenium/hub:4.25.0
+    container_name: nascon-selenium-hub
+    restart: unless-stopped
+    ports:
+      - "4444:4444"
+      - "4442:4442"
+      - "4443:4443"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:4444/status || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
+
+  # ── Selenium Chrome Node 1 ───────────────────────────────────────────────────
+  # shm_size 1gb prevents Chromium OOM/SIGSEGV on 8 GB runner machines (spec 6.2.1)
+  node-chrome-1:
+    image: selenium/node-chrome:4.25.0
+    shm_size: "1gb"
+    restart: unless-stopped
+    depends_on:
+      selenium-hub:
+        condition: service_healthy
+    environment:
+      SE_EVENT_BUS_HOST:            selenium-hub
+      SE_EVENT_BUS_PUBLISH_PORT:    4442
+      SE_EVENT_BUS_SUBSCRIBE_PORT:  4443
+      SE_NODE_MAX_SESSIONS:         2
+      SE_START_VNC:                 "false"
+      # Nodes reach the backend via the compose service name
+      SE_NODE_GRID_URL:             http://selenium-hub:4444
+
+  # ── Selenium Chrome Node 2 ───────────────────────────────────────────────────
+  node-chrome-2:
+    image: selenium/node-chrome:4.25.0
+    shm_size: "1gb"
+    restart: unless-stopped
+    depends_on:
+      selenium-hub:
+        condition: service_healthy
+    environment:
+      SE_EVENT_BUS_HOST:            selenium-hub
+      SE_EVENT_BUS_PUBLISH_PORT:    4442
+      SE_EVENT_BUS_SUBSCRIBE_PORT:  4443
+      SE_NODE_MAX_SESSIONS:         2
+      SE_START_VNC:                 "false"
+      SE_NODE_GRID_URL:             http://selenium-hub:4444
+
+  # ── Selenium Firefox Node ────────────────────────────────────────────────────
+  node-firefox:
+    image: selenium/node-firefox:4.25.0
+    shm_size: "1gb"
+    restart: unless-stopped
+    depends_on:
+      selenium-hub:
+        condition: service_healthy
+    environment:
+      SE_EVENT_BUS_HOST:            selenium-hub
+      SE_EVENT_BUS_PUBLISH_PORT:    4442
+      SE_EVENT_BUS_SUBSCRIBE_PORT:  4443
+      SE_NODE_MAX_SESSIONS:         2
+      SE_START_VNC:                 "false"
+      SE_NODE_GRID_URL:             http://selenium-hub:4444
 
 volumes:
   postgres_data:
+  rustfs_data:
+  mediamtx_recordings:

@@ -6,6 +6,7 @@ const cors     = require('@fastify/cors');
 const helmet   = require('@fastify/helmet');
 const { AppError } = require('./utils/errors');
 const { rateLimitHook } = require('./middleware/rateLimit');
+const { guestWriteGuardForPaths, PROTECTED_WRITE_PATHS } = require('./middleware/guestGuard');
 
 // Grader audit route modules (/audit/v1/*)
 const healthRoutes       = require('./routes/health');
@@ -32,11 +33,17 @@ const playersRoutes      = require('./routes/players');
 const usersRoutes        = require('./routes/users');
 const syncApiRoutes      = require('./routes/syncApi');
 
+// Phase II module registry
+const moduleRegistry = require('./modules');
+
 const app = Fastify({ logger: true });
 
 // ── Plugins ────────────────────────────────────────────────────────────────
 app.register(cors,   { origin: '*' });
 app.register(helmet, { contentSecurityPolicy: false });
+
+// ── Guest write guard — blocks guest_anon_tok_* on spec-defined write paths ─
+app.addHook('preHandler', guestWriteGuardForPaths(PROTECTED_WRITE_PATHS));
 
 // ── Body size limit — 1 MB → 413 ───────────────────────────────────────────
 app.addContentTypeParser(
@@ -112,5 +119,11 @@ app.register(productsRoutes,    { prefix: '/api/v1' });
 app.register(playersRoutes,     { prefix: '/api/v1' });
 app.register(usersRoutes,       { prefix: '/api/v1' });
 app.register(syncApiRoutes,     { prefix: '/api/v1' });
+
+// ── Phase II modules (auto-discovered from src/modules/*) ──────────────────
+// registerAll() walks src/modules/*/index.js and calls registerRoutes(app).
+app.register(async (instance) => {
+  await moduleRegistry.registerAll(instance);
+});
 
 module.exports = app;
