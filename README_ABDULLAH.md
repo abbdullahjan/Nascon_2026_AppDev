@@ -16,6 +16,9 @@ You own the guest-facing side: QR deep-links, guest access, cart merge, moderati
 | `backend/tests/` files for your modules (`qr*`, `guest*`, `moderation*`, `web*`) | Your unit tests |
 | `tests/selenium/` | Selenium suite |
 | `tests/k6_load.js` | k6 script |
+| `docker-compose.yml`, every `Dockerfile`, `.dockerignore` | The full stack: backend, Postgres, Redis, RustFS, MediaMTX, Selenium Hub + 3 nodes |
+| `mediamtx.yml` | MediaMTX config: auth hook, control API, RTMP/HLS/WebRTC ports |
+| `.github/workflows/autograde.yml` | CI workflow that brings the stack up and runs the probes |
 | Mobile app folder | `nascon://` intent filter, QR scanner, stream screens |
 | Migrations with your prefixes (see `docs/CONVENTIONS.md`) | Your tables |
 
@@ -24,8 +27,6 @@ You own the guest-facing side: QR deep-links, guest access, cart merge, moderati
 - `backend/src/modules/streaming/`
 - `backend/src/modules/costream/`
 - `backend/src/modules/realtime/`
-- `docker-compose.yml` — **ask Ahmed** if you need a change (new env var, port, service)
-- `.github/workflows/autograde.yml`
 - `tests/appium/`
 - Ahmed's test files and migration prefixes
 
@@ -53,6 +54,19 @@ Never put module logic into `shared/`.
 | 10 | **Mobile:** `nascon://` intent filter in `AndroidManifest.xml`, screens for `nascon://entity/match-m1` and `nascon://stream/cs-session-101`, QR scanner | 6.3 | Medium |
 | 11 | **FR-3.1 athlete profile + follow/unfollow** (no audit probe, lowest priority) | 3.1 | Medium |
 
+### Docker & infrastructure (yours alone, Ahmed does none of it)
+
+| # | Task | Spec | Difficulty |
+|---|---|---|---|
+| D1 | **Compose boots cleanly:** `DAY1_SALT=x DAY2_SALT=y docker compose up -d --build` from a clean checkout reaches `GET /health` = 200 `{"status":"ok"}` within **120 s**. Healthchecks and `depends_on` for DB, Redis, MediaMTX. Salts forwarded as `${DAY1_SALT}` / `${DAY2_SALT}`, never literal. | 5.2, 7.3 | Medium |
+| D2 | **Selenium Grid 4:** hub (4444, 4442, 4443) + 2 Chrome nodes + 1 Firefox node, `shm_size: "1gb"`, `SE_START_VNC=false`, `SE_NODE_MAX_SESSIONS=2`. `GET http://localhost:4444/status` must show `ready: true` and at least 3 nodes. Nodes must reach the backend (`http://backend:8080` or `host.docker.internal:8080`; add `extra_hosts: host.docker.internal:host-gateway` for Linux CI). | 6.2.1 | Medium |
+| D3 | **MediaMTX:** ports 1935 (RTMP), 8888 (HLS), 8889 (WebRTC), plus its control API on the internal network. `mediamtx.yml` with the external auth hook pointing at the backend and any recording settings Ahmed asks for. | 6.1 | Medium-Hard |
+| D4 | **RustFS (S3-compatible):** service, bucket auto-creation, and `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` passed to the backend. | 3.1 | Medium |
+| D5 | **`autograde.yml`:** on every push to `main`: compose up, wait for `/health`, run contract probes, check Selenium node count, run a k6 smoke check, upload `tests/reports/`. | 1.3 | Medium |
+| D6 | **Clean-start test:** `docker compose down -v` then a full start, timed. Check memory use on an 8 GB machine (set limits if the nodes crash). Run once before every checkpoint push. | 7.3 | Easy |
+
+Do D1 first (it blocks both of you), then D2 and D3, since Ahmed needs MediaMTX for stream keys.
+
 The 9 `data-testid` values: `guest-video-player`, `live-score-banner`, `pinned-merch-card`, `add-to-guest-cart-btn`, `guest-cart-count`, `chat-message-list`, `chat-input-field`, `chat-send-btn`, `progressive-auth-modal`.
 
 ## 5. The interfaces between you and Ahmed
@@ -60,7 +74,8 @@ The 9 `data-testid` values: `guest-video-player`, `live-score-banner`, `pinned-m
 1. **Events route is Ahmed's.** You provide `applyMatchEvent(event)` in `backend/src/modules/qr/matchStatus.js`. Keep its signature stable and tell Ahmed when it's ready.
 2. **Moderation service:** export `moderateMessage({ chat_room_id, message_id, sender, text })` from `backend/src/modules/moderation/service.js`. Ahmed's chat broadcast calls it before sending to viewers.
 3. **Live score:** your web player connects to the fixed WS URL `ws://localhost:8080/ws/matches/{match_id}` (or SSE `/api/v1/matches/{match_id}/stream`). Agree the score event JSON with Ahmed in the first 15 minutes; it will be written in `docs/CONVENTIONS.md`. Build against it before his server is ready.
-4. Guests must not post chat: `chat-send-btn` triggers a real request that the **server** rejects with 403 `GUEST_WRITE_FORBIDDEN`, then you open `progressive-auth-modal`. Hiding the button earns zero credit.
+4. **Ahmed's infra needs:** within the first 15 minutes he sends you what his modules need (MediaMTX auth-hook URL, control API port, env vars such as `MEDIAMTX_API_URL` and `S3_*`). You wire them into `docker-compose.yml` and `mediamtx.yml`. Confirm back when it's ready.
+5. Guests must not post chat: `chat-send-btn` triggers a real request that the **server** rejects with 403 `GUEST_WRITE_FORBIDDEN`, then you open `progressive-auth-modal`. Hiding the button earns zero credit.
 
 ## 6. Hard rules (summary — full list in `.kiro/steering/project.md`)
 
@@ -86,13 +101,13 @@ The 9 `data-testid` values: `guest-video-player`, `live-score-banner`, `pinned-m
 
 | Time | Goal |
 |---|---|
-| 10:15–10:40 | Agree event JSON with Ahmed, start QR + `applyMatchEvent` |
-| 10:40–11:30 | QR endpoints, redirect, exports → **push** |
+| 10:15–10:40 | Agree event JSON with Ahmed, **D1 (compose boots)**, start QR + `applyMatchEvent` |
+| 10:40–11:30 | D2 + D3 (Selenium Grid, MediaMTX), QR endpoints, redirect, exports → **push** |
 | 11:30–12:45 | Cart merge, moderation + DLQ, privacy delete → **push** |
-| 12:45–13:30 | Web player with all `data-testid`, Selenium tests, k6 run → **push** |
-| 13:30–13:55 | Mobile deep-link, WCAG pass, regression run, final fixes |
+| 12:45–13:30 | Web player with all `data-testid`, Selenium tests, k6 run, D4 + D5 (RustFS, `autograde.yml`) → **push** |
+| 13:30–13:55 | D6 clean-start test, mobile deep-link, WCAG pass, regression run, final fixes |
 | 13:45–14:00 | Final push (nothing risky) |
 
 ## 9. If you finish early
 
-Ask Ahmed for his lowest-priority items: recording to RustFS, `autograde.yml`, or the Appium tests.
+Ask Ahmed for his lowest-priority items: recording to RustFS or the Appium tests.

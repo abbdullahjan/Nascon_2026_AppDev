@@ -13,8 +13,6 @@ You own the **hardest** backend pieces: media pipeline, co-stream state machine,
 | `backend/src/modules/costream/` | Co-stream sessions, host handoff |
 | `backend/src/modules/realtime/` | WebSocket/SSE, `/metrics`, `POST /audit/v1/events` handler, chat broadcast |
 | `backend/tests/` files for your modules (`streaming*`, `costream*`, `realtime*`) | Your unit tests |
-| `docker-compose.yml` | **You are the only editor.** If Abdullah needs a change, he asks you. |
-| `.github/workflows/autograde.yml` | CI workflow |
 | `tests/appium/` | Appium suite |
 | Migrations with your prefixes (see `docs/CONVENTIONS.md`) | Your tables |
 
@@ -24,6 +22,7 @@ You own the **hardest** backend pieces: media pipeline, co-stream state machine,
 - `backend/src/modules/qr/`
 - `backend/src/modules/moderation/`
 - `backend/src/modules/web/`
+- **All Docker / infrastructure work is Abdullah's:** `docker-compose.yml`, every `Dockerfile`, `.dockerignore`, `mediamtx.yml`, `.github/workflows/autograde.yml`. Ask him; do not edit them.
 - `tests/selenium/`, `tests/k6_load.js`
 - Abdullah's test files and migration prefixes
 - The mobile app folder
@@ -46,8 +45,7 @@ Never put module logic into `shared/`.
 | 4 | **Co-stream session:** 5 ordered validation steps, host-drop handoff (`participants[0]` removed → next is host), solo termination, idempotent replay (200), `chat-{session_id}`, signature | 5.5, 8.1 | Hard |
 | 5 | **`/metrics`:** the 5 gauges/counters, content type `text/plain; version=0.0.4` | 4 (NFR-6), 5.9 | Medium |
 | 6 | **Recording to RustFS + VOD index** on stream end (S3 SDK, env vars only) | 3.1 | Medium (lowest priority) |
-| 7 | **`autograde.yml`:** on push to `main`, run contract probes, Selenium node check, k6 smoke | 1.3 | Medium |
-| 8 | **Appium tests:** `tests/appium/test_mobile_deeplink.py` + one cross-surface test (mobile joins `cs-session-101`, browser verifies chat in 3 s) | 6.3 | Medium |
+| 7 | **Appium tests:** `tests/appium/test_mobile_deeplink.py` + one cross-surface test (mobile joins `cs-session-101`, browser verifies chat in 3 s) | 6.3 | Medium |
 
 If you finish early, ask Abdullah which of his items to take over (suggest: moderation or the mobile `nascon://` intent filter).
 
@@ -59,6 +57,7 @@ If you finish early, ask Abdullah which of his items to take over (suggest: mode
 2. **Chat:** your realtime module broadcasts chat. Before broadcasting it calls Abdullah's `require('../moderation/service').moderateMessage(...)`. Stub it until it lands.
 3. **WS URL contract is fixed by the spec** — Abdullah's web player codes against it, so never change the URL or message shape without telling him. Agree on the score event JSON in the first 15 minutes (e.g. `{ "type": "score", "match_id", "home", "away" }`) and write it in `docs/CONVENTIONS.md`.
 4. The guest write guard already exists in the baseline. Do not duplicate it.
+5. **Docker is Abdullah's job; you do no Docker work.** In the first 15 minutes, send him a short list of what your modules need from the infrastructure: for MediaMTX, the auth-hook URL (your endpoint path on the backend), whether the control API must be enabled and on which port, and any recording settings; for the backend, every env var you read (e.g. `MEDIAMTX_API_URL`, `S3_*`). He wires them into compose and `mediamtx.yml`. If something fails at container level, tell him instead of editing the compose file.
 
 ## 6. Hard rules (summary — full list in `.kiro/steering/project.md`)
 
@@ -85,6 +84,6 @@ If you finish early, ask Abdullah which of his items to take over (suggest: mode
 | 10:15–10:40 | Agree event JSON with Abdullah, start events + WS |
 | 10:40–11:30 | WS/SSE done and measured, stream keys done → **push** |
 | 11:30–12:45 | MediaMTX auth + sever, co-stream → **push** |
-| 12:45–13:30 | `/metrics`, autograde.yml, Appium, recording if time → **push** |
-| 13:30–13:55 | Full clean `docker compose up`, regression run, final fixes |
+| 12:45–13:30 | `/metrics`, Appium, recording if time → **push** |
+| 13:30–13:55 | Re-test your modules on the clean stack Abdullah starts, regression run, final fixes |
 | 13:45–14:00 | Final push (nothing risky) |
