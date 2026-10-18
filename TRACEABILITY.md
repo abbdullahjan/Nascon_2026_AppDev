@@ -247,3 +247,17 @@ Each requirement ID maps to the source file(s) that implement it and the test fi
 ```bash
 pytest tests/appium/ -v --junitxml=tests/reports/appium-report.xml
 ```
+
+---
+
+## Phase II — Module: Chat Moderation & DLQ (FR-5.3, FR-5.2, Section 5.8)
+
+| Item | File |
+|------|------|
+| Leetspeak normalization & profanity masking (***) | `backend/src/modules/moderation/service.js` → `maskProfanity()` |
+| Flood detection (>= 4 identical chars or >= 3 !/?) | `backend/src/modules/moderation/service.js` → `isFlooded()` |
+| Single message moderation export | `backend/src/modules/moderation/service.js` → `moderateMessage()` |
+| Batch moderation & DLQ inspection | `backend/src/modules/moderation/service.js` → `processModerationTest()` |
+| Route: POST /audit/v1/moderation/test | `backend/src/modules/moderation/index.js` |
+| Tests | `backend/tests/moderation.test.js` |
+
