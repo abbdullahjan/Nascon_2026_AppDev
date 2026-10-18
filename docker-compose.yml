@@ -57,18 +57,9 @@ services:
       - "8888:8888"   # HLS + WebRTC playback (HTTP)
       - "8889:8889"   # WebRTC WHIP/WHEP (HTTP)
       - "8890:8890"   # WebRTC WHIP/WHEP (HTTPS, optional)
-    environment:
-      MTX_LOGLEVEL:         info
-      # Allow unauthenticated ingest for development; stream key auth handled by API
-      MTX_AUTHMETHOD:       none
-      # HLS segment settings for low-latency (<3s glass-to-glass)
-      MTX_HLSSEGMENTCOUNT:  3
-      MTX_HLSSEGMENTDURATION: 1s
-      MTX_HLSPARTDURATION:  200ms
-      # Record streams to /recordings for VOD indexing
-      MTX_RECORD:           "yes"
-      MTX_RECORDPATH:       /recordings/%path/%Y-%m-%d_%H-%M-%S-%f
+      - "9997:9997"   # MediaMTX internal API (used by backend streaming module)
     volumes:
+      - ./mediamtx.yml:/mediamtx.yml:ro
       - mediamtx_recordings:/recordings
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8888/ || exit 1"]
@@ -101,10 +92,11 @@ services:
       S3_SECRET_KEY:  ${S3_SECRET_KEY:-rustfsadmin}
       S3_REGION:      us-east-1
       # MediaMTX addresses (used by streaming module to build ingest/playback URLs)
-      MEDIA_HOST:     localhost
-      MEDIA_RTMP_PORT:  1935
-      MEDIA_HLS_PORT:   8888
-      MEDIA_WEBRTC_PORT: 8889
+      MEDIA_HOST:         localhost
+      MEDIA_RTMP_PORT:    1935
+      MEDIA_HLS_PORT:     8888
+      MEDIA_WEBRTC_PORT:  8889
+      MEDIAMTX_API_URL:   http://mediamtx:9997
     depends_on:
       postgres:
         condition: service_healthy
@@ -147,6 +139,8 @@ services:
     depends_on:
       selenium-hub:
         condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       SE_EVENT_BUS_HOST:            selenium-hub
       SE_EVENT_BUS_PUBLISH_PORT:    4442
@@ -164,6 +158,8 @@ services:
     depends_on:
       selenium-hub:
         condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       SE_EVENT_BUS_HOST:            selenium-hub
       SE_EVENT_BUS_PUBLISH_PORT:    4442
@@ -180,6 +176,8 @@ services:
     depends_on:
       selenium-hub:
         condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       SE_EVENT_BUS_HOST:            selenium-hub
       SE_EVENT_BUS_PUBLISH_PORT:    4442

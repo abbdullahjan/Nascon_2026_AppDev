@@ -1,0 +1,43 @@
+# MediaMTX configuration — NaSCon '26
+# Spec 6.1: fixed ports 1935 (RTMP), 8888 (HLS/HTTP), 8889 (WebRTC WHIP/WHEP)
+# Auth hook validates stream keys against the backend API.
+
+logLevel: info
+logDestinations: [stdout]
+
+# ── Ports ───────────────────────────────────────────────────────────────────
+rtmp: yes
+rtmpAddress: :1935
+
+hls: yes
+hlsAddress: :8888
+hlsAlwaysRemux: yes
+hlsSegmentCount: 3
+hlsSegmentDuration: 1s
+hlsPartDuration: 200ms
+
+webrtc: yes
+webrtcAddress: :8889
+
+# ── API (internal — used by backend streaming module) ───────────────────────
+api: yes
+apiAddress: :9997
+
+# ── Authentication hook — delegates to backend stream-key validation ────────
+# POST http://backend:8080/api/v1/stream/auth  { user, password, path, action }
+# Backend returns 200 to allow, non-200 to deny.
+auth:
+  method: http
+  http:
+    url: http://backend:8080/api/v1/stream/auth
+
+# ── Recording — write VOD segments to mounted volume ────────────────────────
+record: yes
+recordPath: /recordings/%path/%Y-%m-%d_%H-%M-%S-%f
+recordFormat: fmp4
+recordSegmentDuration: 60s
+recordDeleteAfter: 0
+
+# ── Default path config — allow all while auth hook decides per-stream ───────
+paths:
+  all_others:
