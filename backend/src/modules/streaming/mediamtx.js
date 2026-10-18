@@ -23,16 +23,17 @@
  * MediaMTX control API reference:
  *   DELETE http://{MEDIAMTX_API_URL}/v3/paths/kick/{name}
  *   name = stream_key (the RTMP path, e.g. sk_live_9f83a1b2c3d4e5f6)
+ *
+ * NOTE: findActiveKey is required lazily inside makeAuthHandler to avoid
+ * a circular dependency: keyService → mediamtx → keyService.
  */
-
-const { findActiveKey } = require('./keyService');
 
 // ── Kick publisher ─────────────────────────────────────────────────────────────
 
 /**
  * Sever an active RTMP/WebRTC publisher by calling the MediaMTX control API.
  * Non-throwing — if the API is unreachable or the path is not live we log and
- * return silently.  The 2-second deadline is enforced via AbortSignal.timeout.
+ * return silently.  The 2-second deadline is enforced via AbortController.
  *
  * @param {string} streamKey  e.g. "sk_live_9f83a1b2c3d4e5f6"
  */
@@ -55,7 +56,7 @@ async function kickPublisher(streamKey) {
       console.warn(`[streaming] kickPublisher got HTTP ${res.status} for key ${streamKey}`);
     }
   } catch (err) {
-    // AbortError = timeout; ConnectionRefused = mediamtx not up — both fine
+    // AbortError = timeout; ECONNREFUSED = mediamtx not up — both acceptable
     console.warn(`[streaming] kickPublisher skipped: ${err.message}`);
   }
 }
@@ -64,8 +65,15 @@ async function kickPublisher(streamKey) {
 
 /**
  * Returns a Fastify route handler for POST /internal/mediamtx/auth.
- * findActiveKey is required lazily here to break the circular dependency:
- *   keyService → mediamtx → keyService
+ *
+ * MediaMTX sends a JSON body like:
+ *   { "ip": "...", "user": "", "password": "", "path": "sk_live_...",
+ *     "protocol": "rtmp", "id": "...", "action": "publish"|"read" }
+ *
+ * We only authenticate publishers (action = "publish").
+ * Readers (HLS/WebRTC viewers) are always allowed.
+ *
+ * Response: 200 → allow, 401 → deny.
  */
 function makeAuthHandler() {
   return async function mediamtxAuthHandler(request, reply) {
@@ -82,7 +90,7 @@ function makeAuthHandler() {
     }
 
     try {
-      // Lazy require breaks the circular dependency
+      // Lazy require breaks circular dependency: keyService → mediamtx → keyService
       const { findActiveKey } = require('./keyService');
       const row = await findActiveKey(streamKey);
       if (!row) {

@@ -146,3 +146,104 @@ Each requirement ID maps to the source file(s) that implement it and the test fi
 | DB migrations + seeding | `backend/src/db/migrations/001_initial_schema.js`, `backend/src/db/seed.js` |
 | Reset endpoint | `backend/src/services/resetService.js` |
 | Health probe | `backend/src/routes/health.js` |
+
+---
+
+## Phase II — Module 0: Shared Foundation
+
+| Item | File |
+|------|------|
+| `canonical()` — key sorting, non-ASCII unescaped | `backend/src/shared/canonical.js` |
+| `sign_day2()` — HMAC-SHA256 with DAY2_SALT + pipe | `backend/src/shared/sign.js` |
+| Error helpers (`throwValidation`, `throwNotFound`, etc.) | `backend/src/shared/errors.js` |
+| `Validator` class — schema validation | `backend/src/shared/validate.js` |
+| Centralised env config (DAY2_SALT, S3_*, MEDIA_*) | `backend/src/shared/config.js` |
+| Module auto-loader (`registerAll`, `resetAll`, `seedAll`) | `backend/src/modules/index.js` |
+| Guest write guard middleware | `backend/src/middleware/guestGuard.js` |
+| Phase II baseline migration (8 tables) | `backend/src/db/migrations/100_phase2_baseline.js` |
+| Phase II seed data (match-m1, QR mappings, guest token) | `backend/src/services/resetService.js` |
+| Tests | `backend/tests/shared.test.js` |
+
+---
+
+## Phase II — Module 1: Real-Time (NFR-1, NFR-6, FR-5.2)
+
+| Item | File |
+|------|------|
+| In-process WS + SSE client registry + Prometheus counters | `backend/src/modules/realtime/store.js` |
+| Redis pub/sub broadcaster (psubscribe `match:*`) | `backend/src/modules/realtime/broadcaster.js` |
+| Async broadcast hook on POST /audit/v1/events | `backend/src/modules/realtime/eventsHandler.js` |
+| Prometheus `/metrics` text formatter | `backend/src/modules/realtime/metricsHandler.js` |
+| Routes: WS `/ws/matches/:id`, SSE `/api/v1/matches/:id/stream`, GET `/metrics` | `backend/src/modules/realtime/index.js` |
+| Tests | `backend/tests/realtime.test.js` |
+
+---
+
+## Phase II — Module 2: Streaming (FR-3.2, Section 5.4)
+
+| Item | File |
+|------|------|
+| Stream key generate / rotate / revoke (transactions) | `backend/src/modules/streaming/keyService.js` |
+| Key format `^sk_live_[a-f0-9]{16}$`, `stream_key_override` | `backend/src/modules/streaming/keyService.js` |
+| 4-key sig_payload per Section 5.3 | `backend/src/modules/streaming/keyService.js` → `buildSigPayload()` |
+| RTMP / WebRTC / HLS URL builder from env | `backend/src/modules/streaming/keyService.js` → `buildUrls()` |
+| MediaMTX external auth hook (POST /internal/mediamtx/auth) | `backend/src/modules/streaming/mediamtx.js` → `makeAuthHandler()` |
+| Kick publisher (DELETE MediaMTX control API, 2 s deadline) | `backend/src/modules/streaming/mediamtx.js` → `kickPublisher()` |
+| Route: POST /audit/v1/stream/key | `backend/src/modules/streaming/index.js` |
+| Tests | `backend/tests/streaming.test.js` |
+
+---
+
+## Phase II — Module 3: Co-Stream (FR-3.3, Section 5.5)
+
+| Item | File |
+|------|------|
+| 5-step validation (schema → existence → capacity → layout → handoff) | `backend/src/modules/costream/sessionService.js` → `processSession()` |
+| Host-drop handoff state machine (3 scenarios) | `backend/src/modules/costream/sessionService.js` |
+| Idempotent replay (same session_id → 200 stored result) | `backend/src/modules/costream/sessionService.js` |
+| Signature per Section 5.3 (6-key payload) | `backend/src/modules/costream/sessionService.js` → `buildSigPayload()` |
+| Route: POST /audit/v1/costream/session | `backend/src/modules/costream/index.js` |
+| Tests | `backend/tests/costream.test.js` |
+
+### Spec Conflict Resolution: Layout Capacity Check (Step 4)
+
+**Question:** Does the layout capacity check (step 4) use the participant count _before_ or _after_ the simulated host drop (step 5)?
+
+**Decision:** **Before** the host drop.
+
+**Rationale:** The spec lists step 4 before step 5 in the ordered validation sequence. The phrase "effective active participant count" refers to what the caller is requesting, not the result of the drop simulation. Checking capacity on the post-drop count would mean `grid_2` could never be validated against the actual broadcast layout before the drop occurs — which contradicts the purpose of the layout validation step.
+
+**Agreed by:** Ahmed (Person B). Abdullah to confirm and countersign here if he disagrees.
+
+---
+
+## Phase II — Module 4: Appium Tests (Section 6.3)
+
+| Item | File |
+|------|------|
+| Appium 2 test suite | `tests/appium/test_mobile_deeplink.py` |
+| Shared fixtures (driver, reset, helpers) | `tests/appium/conftest.py` |
+| Python dependencies | `tests/appium/requirements.txt` |
+| pytest config | `tests/appium/pytest.ini` |
+| Android deep-link intent-filter (`nascon://`) | `mobile/android/app/src/main/AndroidManifest.xml` |
+| Test reports output dir | `tests/reports/appium-report.xml` |
+
+### Test Cases
+
+| ID | Description | Spec |
+|---|---|---|
+| TC-A1 | Appium 2 server `GET /status` → `ready: true` | 6.3 |
+| TC-A2 | Backend `GET /health` → 200 ok | 6.1 |
+| TC-A3 | Selenium Grid `GET /status` → `ready: true`, ≥ 3 nodes | 6.1 |
+| TC-A4 | `adb am start nascon://entity/match-m1` opens app in < 2 s, Status: ok | 6.3 |
+| TC-A5 | `adb am start nascon://stream/cs-session-101` opens app in < 2 s | 6.3 |
+| TC-A6 | App stays in foreground after deep-link (no crash, no login wall) | 6.3 |
+| TC-A7 | Appium driver: app launches with MainActivity, no crash | 6.3 |
+| TC-A8 | Appium driver: `nascon://entity/match-m1` navigates to match screen in < 2 s | 6.3 |
+| TC-A9 | Appium driver: `nascon://stream/cs-session-101` opens co-stream screen, no login wall | 6.3 |
+| TC-A10 | Cross-surface: mobile joins cs-session-101 + browser opens `/web/costream/cs-session-101` within 3 s | 6.3 |
+
+### Run Command
+```bash
+pytest tests/appium/ -v --junitxml=tests/reports/appium-report.xml
+```

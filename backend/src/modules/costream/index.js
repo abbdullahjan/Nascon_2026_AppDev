@@ -2,17 +2,39 @@
 
 /**
  * Module: costream
- * Owner: Person B
- * Handles: FR-3.3 Synchronized 4-Way Co-Streaming & Host Handoff
- * Audit endpoints: POST /audit/v1/costream/session
+ * Owner: Ahmed (Person B)
+ *
+ * Routes registered:
+ *   POST /audit/v1/costream/session  — Section 5.5
  */
 
+const { processSession } = require('./sessionService');
+const { AppError }       = require('../../shared');
+const db                 = require('../../config/db');
+
+// ─────────────────────────────────────────────────────────────────────────────
 async function registerRoutes(app) {
-  // TODO: implement costream/session route (Section 5.5)
+
+  app.post('/audit/v1/costream/session', async (request, reply) => {
+    const body = request.body || {};
+
+    try {
+      const { data, httpStatus } = await processSession(body);
+      return reply.status(httpStatus).send(data);
+    } catch (err) {
+      if (err instanceof AppError) {
+        return reply.status(err.httpStatus).send({
+          error: { code: err.errorCode, message: err.message, details: err.details },
+        });
+      }
+      throw err;
+    }
+  });
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 async function reset(trx) {
-  // TODO: truncate costream_sessions table when created
+  await trx('costream_sessions').truncate();
 }
 
 async function seed(trx) {

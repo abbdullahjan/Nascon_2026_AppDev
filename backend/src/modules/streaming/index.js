@@ -7,15 +7,18 @@
  * Routes registered:
  *   POST /audit/v1/stream/key           — generate / rotate / revoke (Section 5.4)
  *   POST /internal/mediamtx/auth        — MediaMTX external auth hook (FR-3.2)
+ *   POST /internal/mediamtx/recording   — MediaMTX on-record-complete webhook (FR-3.2)
+ *   GET  /audit/v1/stream/:stream_key/vods — list VOD recordings for a stream key
  *
  * Validation order (spec rule): 400 → 404 → 403 → 409
  */
 
 const db                             = require('../../config/db');
 const { Validator, throwNotFound,
-        throwConflict, AppError }    = require('../../shared');
+        AppError }                   = require('../../shared');
 const { generate, rotate, revoke }   = require('./keyService');
 const { makeAuthHandler }            = require('./mediamtx');
+const { processRecording, listVods } = require('./recorder');
 
 // ─────────────────────────────────────────────────────────────────────────────
 async function registerRoutes(app) {
@@ -80,11 +83,43 @@ async function registerRoutes(app) {
   // ── POST /internal/mediamtx/auth ───────────────────────────────────────────
   // Not an audit route — internal only, not rate-limited, not guest-guarded.
   app.post('/internal/mediamtx/auth', makeAuthHandler());
+
+  // ── POST /internal/mediamtx/recording ──────────────────────────────────────
+  // MediaMTX calls this when a recording segment completes (onRecordSegmentComplete).
+  // Body: { stream_key, file_path, duration?, size? }
+  app.post('/internal/mediamtx/recording', async (request, reply) => {
+    const body = request.body || {};
+    try {
+      const result = await processRecording(body);
+      return reply.status(202).send(result); // 202 Accepted — upload is async
+    } catch (err) {
+      if (err.statusCode === 400) {
+        return reply.status(400).send({
+          error: { code: 'VALIDATION_ERROR', message: err.message, details: {} },
+        });
+      }
+      if (err instanceof AppError) {
+        return reply.status(err.httpStatus).send({
+          error: { code: err.errorCode, message: err.message, details: err.details },
+        });
+      }
+      throw err;
+    }
+  });
+
+  // ── GET /audit/v1/stream/:stream_key/vods ───────────────────────────────────
+  // List completed VOD recordings for a given stream key.
+  app.get('/audit/v1/stream/:stream_key/vods', async (request, reply) => {
+    const { stream_key } = request.params;
+    const vods = await listVods(stream_key);
+    return reply.status(200).send({ stream_key, vods });
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 async function reset(trx) {
-  // Truncate stream_keys — safe because migration 100 already created it.
+  // Truncate stream_keys and vod_recordings (dependency order — vods first).
+  await trx('vod_recordings').truncate();
   await trx('stream_keys').truncate();
 }
 
