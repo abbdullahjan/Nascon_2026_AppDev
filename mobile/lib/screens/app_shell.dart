@@ -10,6 +10,7 @@ import 'store_screen.dart';
 import 'club_screen.dart';
 import 'sync_screen.dart';
 import 'settings_screen.dart';
+
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
   @override
@@ -56,10 +57,10 @@ class _AppShellState extends State<AppShell> {
           ),
           const SizedBox(width: 10),
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('NEXUS',
+            Text('NEXUS',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: kText)),
             Text(state.userName.toUpperCase(),
-                style: const TextStyle(fontSize: 8, color: kMuted, letterSpacing: 1.5, fontWeight: FontWeight.w600)),
+                style: TextStyle(fontSize: 8, color: kMuted, letterSpacing: 1.5, fontWeight: FontWeight.w600)),
           ]),
         ]),
         actions: [

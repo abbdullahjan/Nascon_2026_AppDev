@@ -16,7 +16,6 @@ class _ClubScreenState extends State<ClubScreen> with SingleTickerProviderStateM
   bool _offline = false;
   Map<String, dynamic>? _data;
 
-  // Demo rosters — replaced by real data when available (multi-sport, multi-team)
   static final _allTeams = {
     'Northside FC': {
       'sport': 'football',
@@ -83,7 +82,7 @@ class _ClubScreenState extends State<ClubScreen> with SingleTickerProviderStateM
   };
 
   String _selectedTeam = 'Northside FC';
-  List<Map<String, dynamic>> get _roster => 
+  List<Map<String, dynamic>> get _roster =>
       (_allTeams[_selectedTeam]?['roster'] as List?)?.cast<Map<String, dynamic>>() ?? [];
   String get _teamSport => _allTeams[_selectedTeam]?['sport'] as String? ?? 'football';
 
@@ -102,7 +101,6 @@ class _ClubScreenState extends State<ClubScreen> with SingleTickerProviderStateM
     setState(() => _loading = true);
     if (state.online) {
       try {
-        // Try to get club data from standings for now
         final standings = await ApiClient().getStandings('league-alpha-1');
         await state.cacheData('club_alpha-1', {'club': 'club-alpha-1', 'standings': standings});
         setState(() { _data = standings; _offline = false; });
@@ -155,7 +153,7 @@ class _ClubScreenState extends State<ClubScreen> with SingleTickerProviderStateM
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(_selectedTeam, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
                   const SizedBox(height: 2),
-                  const Text('Alpha Sports · Multi-Sport', style: TextStyle(color: kMuted, fontSize: 11)),
+                  Text('Alpha Sports · Multi-Sport', style: TextStyle(color: kMuted, fontSize: 11)),
                   const SizedBox(height: 6),
                   Row(children: [
                     const StatusBadge('ACTIVE', color: kGreen),
@@ -188,24 +186,24 @@ class _ClubScreenState extends State<ClubScreen> with SingleTickerProviderStateM
               Row(children: [
                 Expanded(child: Panel(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   const Text('12', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: kGold)),
-                  const Text('PLAYERS', style: TextStyle(fontSize: 9, color: kMuted, letterSpacing: 1, fontWeight: FontWeight.w700)),
+                  Text('PLAYERS', style: TextStyle(fontSize: 9, color: kMuted, letterSpacing: 1, fontWeight: FontWeight.w700)),
                 ]))),
                 const SizedBox(width: 8),
                 Expanded(child: Panel(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   const Text('8', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: kGold)),
-                  const Text('WINS', style: TextStyle(fontSize: 9, color: kMuted, letterSpacing: 1, fontWeight: FontWeight.w700)),
+                  Text('WINS', style: TextStyle(fontSize: 9, color: kMuted, letterSpacing: 1, fontWeight: FontWeight.w700)),
                 ]))),
                 const SizedBox(width: 8),
                 Expanded(child: Panel(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   const Text('2', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: kGold)),
-                  const Text('TROPHIES', style: TextStyle(fontSize: 9, color: kMuted, letterSpacing: 1, fontWeight: FontWeight.w700)),
+                  Text('TROPHIES', style: TextStyle(fontSize: 9, color: kMuted, letterSpacing: 1, fontWeight: FontWeight.w700)),
                 ]))),
               ]),
               const SizedBox(height: 10),
               Panel(padding: const EdgeInsets.all(12), child: Row(children: [
                 const Icon(Icons.location_on_outlined, color: kGold, size: 18),
                 const SizedBox(width: 8),
-                const Expanded(child: Text('Northside Sports Complex · Islamabad · 33.7°N 73.0°E',
+                Expanded(child: Text('Northside Sports Complex · Islamabad · 33.7°N 73.0°E',
                     style: TextStyle(color: kMuted, fontSize: 11))),
               ])),
               const SizedBox(height: 12),
@@ -240,7 +238,7 @@ class _ClubScreenState extends State<ClubScreen> with SingleTickerProviderStateM
                   onManage: () => _showTransferSheet(context, state, playerId: p['id'])),
             )),
             if (!state.isManager)
-              const Panel(child: Text('Roster management is available to Club Managers.\nSign in with manager@nascon.test.',
+              Panel(child: Text('Roster management is available to Club Managers.\nSign in with manager@nascon.test.',
                   style: TextStyle(color: kMuted, fontSize: 12, height: 1.5))),
           ]),
           // ── Staff tab
@@ -259,7 +257,7 @@ class _ClubScreenState extends State<ClubScreen> with SingleTickerProviderStateM
                 const SizedBox(width: 12),
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(s.$1, style: const TextStyle(fontWeight: FontWeight.w700)),
-                  Text(s.$2, style: const TextStyle(color: kMuted, fontSize: 11)),
+                  Text(s.$2, style: TextStyle(color: kMuted, fontSize: 11)),
                 ]),
               ])),
             )),
@@ -275,7 +273,7 @@ class _ClubScreenState extends State<ClubScreen> with SingleTickerProviderStateM
               padding: const EdgeInsets.only(bottom: 8),
               child: Panel(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 child: Row(children: [
-                  Text(s.$1, style: const TextStyle(color: kMuted, fontSize: 13)),
+                  Text(s.$1, style: TextStyle(color: kMuted, fontSize: 13)),
                   const Spacer(),
                   Text(s.$2, style: const TextStyle(fontWeight: FontWeight.w900, color: kGold, fontSize: 16)),
                 ])),
@@ -314,7 +312,7 @@ class _PlayerCard extends StatelessWidget {
       const SizedBox(width: 12),
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(player['name'] as String, style: const TextStyle(fontWeight: FontWeight.w700)),
-        Text(player['position'] as String, style: const TextStyle(color: kMuted, fontSize: 11)),
+        Text(player['position'] as String, style: TextStyle(color: kMuted, fontSize: 11)),
       ])),
       StatusBadge(role.replaceAll('_', ' ').toUpperCase(), color: roleColor),
       if (canManage) ...[
@@ -324,7 +322,7 @@ class _PlayerCard extends StatelessWidget {
           child: Container(
             width: 30, height: 30,
             decoration: BoxDecoration(color: kSurface2, borderRadius: BorderRadius.circular(8), border: Border.all(color: kBorder)),
-            child: const Icon(Icons.more_horiz_rounded, color: kMuted, size: 16),
+            child: Icon(Icons.more_horiz_rounded, color: kMuted, size: 16),
           ),
         ),
       ],
@@ -395,7 +393,7 @@ class _TransferSheetState extends State<_TransferSheet> {
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           const Text('Player Action', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900)),
           const SizedBox(height: 4),
-          Text('Player: ${widget.playerId}', style: const TextStyle(color: kMuted, fontSize: 12)),
+          Text('Player: ${widget.playerId}', style: TextStyle(color: kMuted, fontSize: 12)),
           const SizedBox(height: 16),
           // Type selector
           Row(children: ['transfer', 'loan', 'release'].map((t) => Expanded(child: Padding(

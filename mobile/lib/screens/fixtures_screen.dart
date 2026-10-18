@@ -33,7 +33,6 @@ class _FixturesScreenState extends State<FixturesScreen> {
 
     if (state.online) {
       try {
-        // Fetch from standings to get fixture list; or use cached league config
         final leagueData = await ApiClient().get('/audit/v1/standings/$_leagueId');
         final fixtures = _extractFixtures(leagueData);
         await state.cacheData('fixtures_$_leagueId', fixtures);
@@ -63,7 +62,6 @@ class _FixturesScreenState extends State<FixturesScreen> {
   }
 
   List<Map<String, dynamic>> _extractFixtures(Map<String, dynamic> data) {
-    // standings response has table — build a fake fixture list from team names
     final table = (data['table'] as List?) ?? [];
     return table.asMap().entries.map((e) => {
       'match_id': 'm${e.key + 1}',
@@ -108,7 +106,7 @@ class _FixturesScreenState extends State<FixturesScreen> {
         const SizedBox(height: 6),
         const HeadlineText('Fixtures'),
         const SizedBox(height: 4),
-        const Text('All matches across leagues', style: TextStyle(color: kMuted, fontSize: 12)),
+        Text('All matches across leagues', style: TextStyle(color: kMuted, fontSize: 12)),
         const SizedBox(height: 14),
         // League selector
         SizedBox(
@@ -181,7 +179,7 @@ class _FixtureCard extends StatelessWidget {
         child: Column(children: [
           Row(children: [
             Text((fixture['sport'] as String? ?? '').toUpperCase(),
-                style: const TextStyle(color: kMuted, fontSize: 9, letterSpacing: 1.5, fontWeight: FontWeight.w800)),
+                style: TextStyle(color: kMuted, fontSize: 9, letterSpacing: 1.5, fontWeight: FontWeight.w800)),
             const Spacer(),
             if (isLive) ...[const LiveDot(), const SizedBox(width: 6)],
             StatusBadge(matchStatusLabel(status), color: color),
@@ -227,12 +225,12 @@ class _FixtureCard extends StatelessWidget {
           ]),
           const SizedBox(height: 12),
           Row(children: [
-            const Icon(Icons.arrow_forward_rounded, size: 14, color: kMuted),
+            Icon(Icons.arrow_forward_rounded, size: 14, color: kMuted),
             const SizedBox(width: 4),
-            Text('Tap to open', style: const TextStyle(color: kMuted, fontSize: 10)),
+            Text('Tap to open', style: TextStyle(color: kMuted, fontSize: 10)),
             const Spacer(),
             Text(fixture['match_id'] as String? ?? '',
-                style: const TextStyle(color: kBorder, fontSize: 10)),
+                style: TextStyle(color: kBorder, fontSize: 10)),
           ]),
         ]),
       ),

@@ -25,7 +25,7 @@ class NasconApp extends StatelessWidget {
         title: 'NaSCon \'26',
         theme: buildTheme(isDark: false),
         darkTheme: buildTheme(isDark: true),
-        themeMode: state.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+        themeMode: ThemeMode.light,
         home: const SplashScreen(),
       ),
     );

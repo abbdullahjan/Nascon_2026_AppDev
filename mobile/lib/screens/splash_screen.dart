@@ -98,7 +98,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                       textAlign: TextAlign.center,
                       style: TextStyle(color: kOrange, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 4),
-                  const Text('Check that docker compose is running on port 8080.',
+                  Text('Check that docker compose is running on port 8080.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: kMuted, fontSize: 11)),
                   const SizedBox(height: 24),
@@ -124,7 +124,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                         label: const Text('Settings'),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: kText,
-                          side: const BorderSide(color: kBorder),
+                          side: BorderSide(color: kBorder),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         ),
                       ),
@@ -132,7 +132,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                   ]),
                 ],
                 const Spacer(),
-                const Text('NaSCon · FAST-NUCES',
+                Text('NaSCon · FAST-NUCES',
                     style: TextStyle(color: kBorder, fontSize: 10, letterSpacing: 1.5)),
                 const SizedBox(height: 16),
               ],
@@ -174,7 +174,7 @@ class _ServerSettingsScreenState extends State<_ServerSettingsScreen> {
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text('API Base URL', style: TextStyle(color: kMuted, fontSize: 12)),
+          Text('API Base URL', style: TextStyle(color: kMuted, fontSize: 12)),
           const SizedBox(height: 8),
           TextField(
             controller: _ctrl,
@@ -185,7 +185,7 @@ class _ServerSettingsScreenState extends State<_ServerSettingsScreen> {
             ),
           ),
           const SizedBox(height: 6),
-          const Text('Android emulator: http://10.0.2.2:8080\nPhysical device: http://YOUR_LAN_IP:8080',
+          Text('Android emulator: http://10.0.2.2:8080\nPhysical device: http://YOUR_LAN_IP:8080',
               style: TextStyle(color: kMuted, fontSize: 11, height: 1.5)),
           const SizedBox(height: 20),
           SizedBox(

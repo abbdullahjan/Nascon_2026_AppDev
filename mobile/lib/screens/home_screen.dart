@@ -29,7 +29,7 @@ class HomeScreen extends StatelessWidget {
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Eyebrow('NaSCon \'26 · Season Active'),
                 const Spacer(),
-                const Text('CHAMPIONSHIP', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: kText, letterSpacing: -0.5)),
+                Text('CHAMPIONSHIP', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: kText, letterSpacing: -0.5)),
                 const SizedBox(height: 2),
                 Text(state.userName, style: const TextStyle(color: kGold, fontWeight: FontWeight.w700, fontSize: 13)),
                 const SizedBox(height: 8),
@@ -98,7 +98,7 @@ class HomeScreen extends StatelessWidget {
                 state.online
                     ? 'All features available. Queue syncs automatically.'
                     : 'Cached data shown. Actions queued for sync.',
-                style: const TextStyle(color: kMuted, fontSize: 11, height: 1.4),
+                style: TextStyle(color: kMuted, fontSize: 11, height: 1.4),
               ),
             ])),
           ])),
@@ -128,9 +128,9 @@ class _StatCard extends StatelessWidget {
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Icon(icon, color: kGold, size: 18),
       const SizedBox(height: 10),
-      Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: kText)),
+      Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: kText)),
       const SizedBox(height: 2),
-      Text(label, style: const TextStyle(fontSize: 9, color: kMuted, letterSpacing: 1, fontWeight: FontWeight.w700)),
+      Text(label, style: TextStyle(fontSize: 9, color: kMuted, letterSpacing: 1, fontWeight: FontWeight.w700)),
     ]),
   );
 }
@@ -161,8 +161,8 @@ class _QuickAction extends StatelessWidget {
           StatusBadge(badgeLabel!, color: kMuted),
         ],
       ]),
-      subtitle: Text(subtitle, style: const TextStyle(color: kMuted, fontSize: 11)),
-      trailing: const Icon(Icons.chevron_right_rounded, color: kMuted, size: 20),
+      subtitle: Text(subtitle, style: TextStyle(color: kMuted, fontSize: 11)),
+      trailing: Icon(Icons.chevron_right_rounded, color: kMuted, size: 20),
       onTap: onTap,
     ),
   );

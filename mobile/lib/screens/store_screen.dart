@@ -48,7 +48,7 @@ class _StoreScreenState extends State<StoreScreen> {
       const SizedBox(height: 6),
       const HeadlineText('Club Store'),
       const SizedBox(height: 4),
-      const Text('Matchday gear — checkout with zero overselling',
+      Text('Matchday gear — checkout with zero overselling',
           style: TextStyle(color: kMuted, fontSize: 12)),
       const SizedBox(height: 16),
 
@@ -64,7 +64,7 @@ class _StoreScreenState extends State<StoreScreen> {
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const Eyebrow('Alpha Sports · Official'),
             const Spacer(),
-            const Text('MATCHDAY\nCOLLECTION 2026',
+            Text('MATCHDAY\nCOLLECTION 2026',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900,
                     color: kText, height: 1.1)),
             const SizedBox(height: 4),
@@ -95,8 +95,8 @@ class _StoreScreenState extends State<StoreScreen> {
       Panel(child: Row(children: [
         const Icon(Icons.local_offer_outlined, color: kGold, size: 20),
         const SizedBox(width: 10),
-        const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Discount code', style: TextStyle(fontWeight: FontWeight.w700)),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Text('Discount code', style: TextStyle(fontWeight: FontWeight.w700)),
           Text('Use WELCOME10 at checkout for 10% off',
               style: TextStyle(color: kMuted, fontSize: 11)),
         ])),
@@ -159,7 +159,7 @@ class _ProductCard extends StatelessWidget {
             style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
         const SizedBox(height: 2),
         Text('Size: ${variant['size']}',
-            style: const TextStyle(color: kMuted, fontSize: 11)),
+            style: TextStyle(color: kMuted, fontSize: 11)),
         const SizedBox(height: 4),
         Row(children: [
           Text(formatMoney(variant['price'] as int),
@@ -270,7 +270,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
           MaterialPageRoute(builder: (_) => _ReceiptScreen(order: response)));
     } catch (e) {
       if (!mounted) return;
-      final code = ApiClient.errorCode(e); // handles MockPaymentException + real errors
+      final code = ApiClient.errorCode(e);
       final msg = _friendlyError(code, ApiClient.errorMessage(e));
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(msg), backgroundColor: kRed));
@@ -319,7 +319,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
                 StatusBadge(v['size'] as String, color: kMuted),
                 const Spacer(),
                 Text('× $qty',
-                    style: const TextStyle(color: kMuted, fontSize: 12)),
+                    style: TextStyle(color: kMuted, fontSize: 12)),
                 const SizedBox(width: 8),
                 Text(formatMoney((v['price'] as int) * qty),
                     style: const TextStyle(
@@ -361,7 +361,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
             if (_discountMinor > 0)
               _row('Discount (10%)', '- ${formatMoney(_discountMinor)}',
                   color: kGreen),
-            const Divider(color: kBorder, height: 16),
+            Divider(color: kBorder, height: 16),
             _row('Total', formatMoney(total), big: true),
           ])),
           const SizedBox(height: 14),
@@ -378,7 +378,7 @@ class _CheckoutScreenState extends State<_CheckoutScreen> {
             onChanged: (v) => setState(() => _payToken = v!),
             title: Text(t.$2, style: const TextStyle(fontSize: 13)),
             subtitle: Text(t.$1,
-                style: const TextStyle(
+                style: TextStyle(
                     color: kMuted, fontSize: 10, fontFamily: 'monospace')),
             activeColor: kGold,
             contentPadding: EdgeInsets.zero,
@@ -442,7 +442,7 @@ class _ReceiptScreen extends StatelessWidget {
           const Icon(Icons.check_circle_rounded, color: kGreen, size: 28),
           const SizedBox(height: 4),
           Text(order['order_id'] as String? ?? '',
-              style: const TextStyle(
+              style: TextStyle(
                   fontWeight: FontWeight.w900, fontSize: 15, color: kText)),
         ])),
         const SizedBox(height: 16),
@@ -459,7 +459,7 @@ class _ReceiptScreen extends StatelessWidget {
                 Expanded(child: Text(i['variant_id'] as String? ?? '',
                     style: const TextStyle(fontSize: 12))),
                 Text('× ${i['quantity']}',
-                    style: const TextStyle(color: kMuted, fontSize: 12)),
+                    style: TextStyle(color: kMuted, fontSize: 12)),
                 const SizedBox(width: 8),
                 Text(formatMoney(i['unit_price_minor'] as int? ?? 0),
                     style: const TextStyle(
@@ -467,7 +467,7 @@ class _ReceiptScreen extends StatelessWidget {
               ]),
             );
           }),
-          const Divider(color: kBorder, height: 16),
+          Divider(color: kBorder, height: 16),
           Row(children: [
             const Text('Total', style: TextStyle(
                 fontWeight: FontWeight.w900, fontSize: 16)),
@@ -481,16 +481,16 @@ class _ReceiptScreen extends StatelessWidget {
           ]),
           const SizedBox(height: 8),
           Text('Paid at: ${payload?['paid_at'] ?? ''}',
-              style: const TextStyle(color: kMuted, fontSize: 11)),
+              style: TextStyle(color: kMuted, fontSize: 11)),
         ])),
         const SizedBox(height: 14),
 
         Panel(child: Row(children: [
           const Icon(Icons.receipt_long_rounded, color: kGold),
           const SizedBox(width: 10),
-          const Expanded(child: Column(
+          Expanded(child: Column(
               crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('PDF Receipt',
+            const Text('PDF Receipt',
                 style: TextStyle(fontWeight: FontWeight.w700)),
             Text('Server-signed receipt available',
                 style: TextStyle(color: kMuted, fontSize: 11)),
@@ -518,7 +518,6 @@ class _ReceiptScreen extends StatelessWidget {
 
   Future<void> _downloadPdf(
       BuildContext context, Map<String, dynamic> receipt) async {
-    // PDF download requires native file I/O — show a confirmation for UI testing
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('PDF receipt would download here when backend is connected.'),

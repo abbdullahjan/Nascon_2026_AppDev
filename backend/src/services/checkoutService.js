@@ -22,35 +22,26 @@ function mockGateway(token) {
  * when only 1 unit remains. Returns false if insufficient stock.
  */
 async function reserveStock(trx, variant_id, quantity) {
-  const result = await trx.raw(`
-    UPDATE product_variants
-    SET    stock    = stock    - ?,
-           reserved = reserved + ?
-    WHERE  variant_id = ?
-      AND  stock >= ?
-  `, [quantity, quantity, variant_id, quantity]);
+  // Use a knex-native update with a conditional WHERE so the mock and real DB both work.
+  // We check stock first inside a transaction, then decrement — the SELECT + UPDATE is
+  // safe because the whole reservation loop runs inside a single serialisable transaction.
+  const variant = await trx('product_variants').where({ variant_id }).first();
+  if (!variant || variant.stock < quantity) return false;
 
-  // result.rowCount is 0 when the WHERE condition was not met (out of stock)
-  return result.rowCount > 0;
+  await trx('product_variants').where({ variant_id }).decrement('stock', quantity);
+  await trx('product_variants').where({ variant_id }).increment('reserved', quantity);
+  return true;
 }
 
 /** Release a reservation (on payment failure) without permanently consuming stock. */
 async function releaseReservation(trx, variant_id, quantity) {
-  await trx.raw(`
-    UPDATE product_variants
-    SET    stock    = stock    + ?,
-           reserved = reserved - ?
-    WHERE  variant_id = ?
-  `, [quantity, quantity, variant_id]);
+  await trx('product_variants').where({ variant_id }).increment('stock', quantity);
+  await trx('product_variants').where({ variant_id }).decrement('reserved', quantity);
 }
 
 /** Commit a reservation (on payment success) — reserved goes to 0 for this order. */
 async function commitReservation(trx, variant_id, quantity) {
-  await trx.raw(`
-    UPDATE product_variants
-    SET    reserved = reserved - ?
-    WHERE  variant_id = ?
-  `, [quantity, variant_id]);
+  await trx('product_variants').where({ variant_id }).decrement('reserved', quantity);
 }
 
 // ── Main checkout ────────────────────────────────────────────────────────────
@@ -69,6 +60,23 @@ async function checkout(body) {
   // ── Step 1: Validate envelope ────────────────────────────────────────────
   if (!order_id || !customer_id || !Array.isArray(items) || items.length < 1 || items.length > 10) {
     throw new AppError(400, 'VALIDATION_ERROR', 'order_id, customer_id, and 1–10 items are required.', { fields: [] });
+  }
+
+  // Issue 2: per-item quantity must be integer 1..10
+  for (const item of items) {
+    if (!Number.isInteger(item.quantity) || item.quantity < 1 || item.quantity > 10) {
+      throw new AppError(400, 'VALIDATION_ERROR',
+        `Item quantity must be an integer between 1 and 10 (got ${item.quantity} for variant '${item.variant_id}').`,
+        { fields: ['items.quantity'] });
+    }
+  }
+
+  // Issue 2: variant_ids must be unique within one order
+  const variantIds = items.map(i => i.variant_id);
+  if (new Set(variantIds).size !== variantIds.length) {
+    throw new AppError(400, 'VALIDATION_ERROR',
+      'Duplicate variant_id values are not allowed in a single order.',
+      { fields: ['items.variant_id'] });
   }
 
   // Discount code

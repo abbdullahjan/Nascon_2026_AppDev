@@ -83,7 +83,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'Android emulator: http://10.0.2.2:8080\nPhysical device: http://YOUR_LAN_IP:8080',
             style: TextStyle(color: kMuted, fontSize: 10, height: 1.5),
           ),
@@ -117,26 +117,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ].map((a) => Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: Row(children: [
-              Expanded(child: Text(a.$1, style: const TextStyle(color: kMuted, fontSize: 12, fontWeight: FontWeight.w600))),
+              Expanded(child: Text(a.$1, style: TextStyle(color: kMuted, fontSize: 12, fontWeight: FontWeight.w600))),
               Text(a.$2, style: const TextStyle(color: kGold, fontSize: 11)),
             ]),
           )),
           const SizedBox(height: 6),
-          const Text('All use password: Nascon@26', style: TextStyle(color: kBorder, fontSize: 10)),
+          Text('All use password: Nascon@26', style: TextStyle(color: kBorder, fontSize: 10)),
         ])),
         const SizedBox(height: 20),
 
-        // About
+        // Appearance
         const SectionTitle('Appearance'),
         const SizedBox(height: 10),
-        Panel(child: SwitchListTile(
-          value: state.isDarkMode,
-          onChanged: (_) => state.toggleTheme(),
-          title: const Text('Dark Mode', style: TextStyle(fontWeight: FontWeight.w700)),
-          subtitle: Text('Switch between light and dark theme', style: TextStyle(color: kMuted, fontSize: 11)),
-          activeColor: kGold,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-        )),
+        
         const SizedBox(height: 20),
 
         // About
@@ -145,10 +138,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 8),
           const Text("NEXUS · NaSCon '26", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
           const SizedBox(height: 4),
-          const Text('Multi-sport league & club operations platform.\nBuilt for the NaSCon \'26 App Dev Competition.',
+          Text('Multi-sport league & club operations platform.\nBuilt for the NaSCon \'26 App Dev Competition.',
               style: TextStyle(color: kMuted, fontSize: 11, height: 1.5)),
           const SizedBox(height: 8),
-          const Text('v1.0.0 · Day 1 Sprint', style: TextStyle(color: kBorder, fontSize: 10)),
+          Text('v1.0.0 · Day 1 Sprint', style: TextStyle(color: kBorder, fontSize: 10)),
         ])),
       ]),
     );

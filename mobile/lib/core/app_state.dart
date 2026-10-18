@@ -268,6 +268,8 @@ class AppState extends ChangeNotifier {
   bool get isPlayer => role == 'player';
 }
 
+Future<void> _loadTheme() async {}
+
 // ── InheritedWidget scope ──────────────────────────────────────────────────
 class AppStateScope extends InheritedNotifier<AppState> {
   const AppStateScope({super.key, required AppState state, required super.child})

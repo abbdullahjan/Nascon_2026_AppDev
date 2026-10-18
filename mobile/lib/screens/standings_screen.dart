@@ -116,17 +116,17 @@ class _StandingsScreenState extends State<StandingsScreen> {
         if (data != null) Row(children: [
           Expanded(child: Panel(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('${table.length}', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: kGold)),
-            const Text('TEAMS', style: TextStyle(fontSize: 9, color: kMuted, letterSpacing: 1, fontWeight: FontWeight.w700)),
+            Text('TEAMS', style: TextStyle(fontSize: 9, color: kMuted, letterSpacing: 1, fontWeight: FontWeight.w700)),
           ]))),
           const SizedBox(width: 10),
           Expanded(child: Panel(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('$qualSpots', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: kGold)),
-            const Text('QUALIFY', style: TextStyle(fontSize: 9, color: kMuted, letterSpacing: 1, fontWeight: FontWeight.w700)),
+            Text('QUALIFY', style: TextStyle(fontSize: 9, color: kMuted, letterSpacing: 1, fontWeight: FontWeight.w700)),
           ]))),
           const SizedBox(width: 10),
           Expanded(child: Panel(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(sportId.toUpperCase(), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: kGold)),
-            const Text('SPORT', style: TextStyle(fontSize: 9, color: kMuted, letterSpacing: 1, fontWeight: FontWeight.w700)),
+            Text('SPORT', style: TextStyle(fontSize: 9, color: kMuted, letterSpacing: 1, fontWeight: FontWeight.w700)),
           ]))),
         ]),
         const SizedBox(height: 14),
@@ -140,8 +140,8 @@ class _StandingsScreenState extends State<StandingsScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
               child: Row(children: [
-                const SizedBox(width: 28, child: Text('#', style: TextStyle(color: kMuted, fontSize: 10, fontWeight: FontWeight.w700))),
-                const Expanded(child: Text('CLUB', style: TextStyle(color: kMuted, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1))),
+                SizedBox(width: 28, child: Text('#', style: TextStyle(color: kMuted, fontSize: 10, fontWeight: FontWeight.w700))),
+                Expanded(child: Text('CLUB', style: TextStyle(color: kMuted, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 1))),
                 _col('P'),
                 _col('W'),
                 _col('D'),
@@ -150,14 +150,14 @@ class _StandingsScreenState extends State<StandingsScreen> {
                 _col('PTS', bold: true),
               ]),
             ),
-            const Divider(color: kBorder, height: 1),
+            Divider(color: kBorder, height: 1),
             ...table.asMap().entries.map((e) {
               final row = e.value as Map<String, dynamic>;
               final isTop = (row['rank'] as int? ?? 99) <= qualSpots;
               return Container(
                 decoration: BoxDecoration(
                   color: isTop ? kGold.withValues(alpha: 0.04) : null,
-                  border: e.key < table.length - 1 ? const Border(bottom: BorderSide(color: kBorder)) : null,
+                  border: e.key < table.length - 1 ? Border(bottom: BorderSide(color: kBorder)) : null,
                 ),
                 padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
                 child: Row(children: [
@@ -205,7 +205,7 @@ class _StandingsScreenState extends State<StandingsScreen> {
           ),
           if (_showH2H) ...[
             const SizedBox(height: 8),
-            Panel(child: const Text('H2H data available via API.\nTable: rows = attacker, columns = defender.',
+            Panel(child: Text('H2H data available via API.\nTable: rows = attacker, columns = defender.',
                 style: TextStyle(color: kMuted, fontSize: 12, height: 1.5))),
           ],
         ],

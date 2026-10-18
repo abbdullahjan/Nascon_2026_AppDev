@@ -136,7 +136,7 @@ class SectionTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(children: [
     Text(title.toUpperCase(),
-        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: kMuted)),
+        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: kMuted)),
     if (trailing != null) ...[const Spacer(), trailing!],
   ]);
 }
@@ -215,7 +215,7 @@ class GhostButton extends StatelessWidget {
       onPressed: onPressed,
       style: OutlinedButton.styleFrom(
         foregroundColor: kText,
-        side: const BorderSide(color: kBorder),
+        side: BorderSide(color: kBorder),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
       ),
@@ -242,11 +242,11 @@ class EmptyState extends StatelessWidget {
       Icon(icon, size: 40, color: kMuted),
       const SizedBox(height: 12),
       Text(title, textAlign: TextAlign.center,
-          style: const TextStyle(fontWeight: FontWeight.w700, color: kText, fontSize: 15)),
+          style: TextStyle(fontWeight: FontWeight.w700, color: kText, fontSize: 15)),
       if (subtitle != null) ...[
         const SizedBox(height: 6),
         Text(subtitle!, textAlign: TextAlign.center,
-            style: const TextStyle(color: kMuted, fontSize: 12, height: 1.5)),
+            style: TextStyle(color: kMuted, fontSize: 12, height: 1.5)),
       ],
     ]),
   );
@@ -345,7 +345,7 @@ class SyncStatusChip extends StatelessWidget {
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           leading,
           const SizedBox(width: 6),
-          Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: kText)),
+          Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: kText)),
         ]),
       ),
     );

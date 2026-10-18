@@ -32,7 +32,7 @@ class SyncScreen extends StatelessWidget {
                 state.online
                     ? 'Backend reachable. Queued actions will sync automatically.'
                     : 'No connection. Actions are saved locally.',
-                style: const TextStyle(color: kMuted, fontSize: 12, height: 1.4),
+                style: TextStyle(color: kMuted, fontSize: 12, height: 1.4),
               ),
             ])),
           ])),
@@ -44,14 +44,14 @@ class SyncScreen extends StatelessWidget {
               Text('${state.pendingActions.length}',
                   style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900,
                       color: state.pendingActions.isEmpty ? kMuted : kOrange)),
-              const Text('PENDING', style: TextStyle(fontSize: 9, color: kMuted, letterSpacing: 1, fontWeight: FontWeight.w700)),
+              Text('PENDING', style: TextStyle(fontSize: 9, color: kMuted, letterSpacing: 1, fontWeight: FontWeight.w700)),
             ]))),
             const SizedBox(width: 10),
             Expanded(child: Panel(padding: const EdgeInsets.all(14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(state.syncing ? '...' : state.online ? 'ON' : 'OFF',
                   style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900,
                       color: state.online ? kGreen : kOrange)),
-              const Text('STATUS', style: TextStyle(fontSize: 9, color: kMuted, letterSpacing: 1, fontWeight: FontWeight.w700)),
+              Text('STATUS', style: TextStyle(fontSize: 9, color: kMuted, letterSpacing: 1, fontWeight: FontWeight.w700)),
             ]))),
           ]),
           const SizedBox(height: 14),
@@ -104,9 +104,9 @@ class SyncScreen extends StatelessWidget {
                       color: _statusColor(a['status'] as String? ?? 'pending')),
                 ]),
                 const SizedBox(height: 6),
-                Text('ID  ${a['action_id']}', style: const TextStyle(color: kMuted, fontSize: 10, fontFamily: 'monospace')),
+                Text('ID  ${a['action_id']}', style: TextStyle(color: kMuted, fontSize: 10, fontFamily: 'monospace')),
                 const SizedBox(height: 4),
-                Text(_formatTime(a['queued_at'] as String?), style: const TextStyle(color: kMuted, fontSize: 10)),
+                Text(_formatTime(a['queued_at'] as String?), style: TextStyle(color: kMuted, fontSize: 10)),
                 if (a['status'] == 'rejected' && a['result'] != null) ...[
                   const SizedBox(height: 6),
                   Container(

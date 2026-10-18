@@ -62,19 +62,19 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: const Icon(Icons.bolt_rounded, color: Colors.black, size: 26),
               ),
               const SizedBox(width: 12),
-              const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('NEXUS', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 2, color: kText)),
                 Text("NASCON '26", style: TextStyle(fontSize: 9, color: kMuted, letterSpacing: 2.5, fontWeight: FontWeight.w700)),
               ]),
             ]),
             const SizedBox(height: 48),
-            const Text('Welcome back', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900, color: kText, letterSpacing: -0.5)),
+            Text('Welcome back', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900, color: kText, letterSpacing: -0.5)),
             const SizedBox(height: 6),
-            const Text('Sign in to your team account', style: TextStyle(color: kMuted, fontSize: 14)),
+            Text('Sign in to your team account', style: TextStyle(color: kMuted, fontSize: 14)),
             const SizedBox(height: 36),
 
             // Email
-            const Text('Email', style: TextStyle(color: kMuted, fontSize: 12, fontWeight: FontWeight.w600)),
+            Text('Email', style: TextStyle(color: kMuted, fontSize: 12, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             TextField(
               controller: _emailCtrl,
@@ -88,7 +88,7 @@ class _LoginScreenState extends State<LoginScreen> {
             const SizedBox(height: 16),
 
             // Password
-            const Text('Password', style: TextStyle(color: kMuted, fontSize: 12, fontWeight: FontWeight.w600)),
+            Text('Password', style: TextStyle(color: kMuted, fontSize: 12, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             TextField(
               controller: _passCtrl,
@@ -135,7 +135,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 border: Border.all(color: kBorder),
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                const Eyebrow('Demo accounts', color: kMuted),
+                Eyebrow('Demo accounts', color: kMuted),
                 const SizedBox(height: 10),
                 ...[
                   ('Super Admin', 'admin@nascon.test'),
@@ -152,13 +152,13 @@ class _LoginScreenState extends State<LoginScreen> {
                     },
                     child: Row(children: [
                       Expanded(child: Text(a.$1,
-                          style: const TextStyle(color: kMuted, fontSize: 11, fontWeight: FontWeight.w600))),
+                          style: TextStyle(color: kMuted, fontSize: 11, fontWeight: FontWeight.w600))),
                       Text(a.$2, style: const TextStyle(color: kGold, fontSize: 11)),
                     ]),
                   ),
                 )),
                 const SizedBox(height: 6),
-                const Text('Password: Nascon@26 · Tap a row to fill',
+                Text('Password: Nascon@26 · Tap a row to fill',
                     style: TextStyle(color: kBorder, fontSize: 10)),
               ]),
             ),

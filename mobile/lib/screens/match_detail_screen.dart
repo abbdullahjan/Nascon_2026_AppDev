@@ -105,7 +105,7 @@ class _MatchDetailScreenState extends State<MatchDetailScreen> {
                         score != null
                             ? '${(score['home'] as Map?)?['score'] ?? 0}  —  ${(score['away'] as Map?)?['score'] ?? 0}'
                             : '—',
-                        style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w900, color: kText),
+                        style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900, color: kText),
                       ),
                       if (status == 'completed')
                         Text(_outcomeLabel(score?['outcome'] as String?),
@@ -145,7 +145,7 @@ class _MatchDetailScreenState extends State<MatchDetailScreen> {
                     const SectionTitle('Innings'),
                     const SizedBox(height: 10),
                     _inningsRow('Home', score['home'] as Map),
-                    const Divider(color: kBorder, height: 16),
+                    Divider(color: kBorder, height: 16),
                     _inningsRow('Away', score['away'] as Map),
                   ])),
                   const SizedBox(height: 16),
@@ -179,8 +179,8 @@ class _MatchDetailScreenState extends State<MatchDetailScreen> {
                     decoration: BoxDecoration(color: kGold.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
                     child: const Icon(Icons.checkroom_rounded, color: kGold)),
                   const SizedBox(width: 12),
-                  const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Alpha Matchday Jersey', style: TextStyle(fontWeight: FontWeight.w700)),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    const Text('Alpha Matchday Jersey', style: TextStyle(fontWeight: FontWeight.w700)),
                     Text('PKR 4,500.00 · M / L', style: TextStyle(color: kMuted, fontSize: 11)),
                   ])),
                   const Icon(Icons.push_pin_outlined, color: kGold, size: 18),
@@ -191,11 +191,11 @@ class _MatchDetailScreenState extends State<MatchDetailScreen> {
   }
 
   Widget _inningsRow(String label, Map data) => Row(children: [
-    Text(label, style: const TextStyle(color: kMuted, fontSize: 12, fontWeight: FontWeight.w600)),
+    Text(label, style: TextStyle(color: kMuted, fontSize: 12, fontWeight: FontWeight.w600)),
     const Spacer(),
     Text('${data['score']}/${data['wickets']}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
     const SizedBox(width: 8),
-    Text('(${data['overs']} ov)', style: const TextStyle(color: kMuted, fontSize: 12)),
+    Text('(${data['overs']} ov)', style: TextStyle(color: kMuted, fontSize: 12)),
   ]);
 }
 
@@ -223,7 +223,7 @@ class _EventRow extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        border: isLast ? null : const Border(bottom: BorderSide(color: kBorder)),
+        border: isLast ? null : Border(bottom: BorderSide(color: kBorder)),
       ),
       child: Row(children: [
         Container(
@@ -307,15 +307,14 @@ class _OrganizerControlsState extends State<_OrganizerControls> {
   Widget build(BuildContext context) {
     final state = AppStateScope.of(context);
     final sportId = widget.score?['sport_id'] as String? ?? widget.fixture['sport'] as String? ?? 'football';
-    
-    // Get event types from sport config
+
     final sportConfig = widget.sports.firstWhere(
       (s) => s['sport_id'] == sportId,
       orElse: () => <String, dynamic>{'scoring_events': <String, dynamic>{}},
     );
     final scoringEvents = sportConfig['scoring_events'] as Map<String, dynamic>? ?? {};
     final events = scoringEvents.keys.toList();
-    
+
     final homeTeam = widget.fixture['home'] as String? ?? 'home';
     final awayTeam = widget.fixture['away'] as String? ?? 'away';
 
@@ -377,7 +376,7 @@ class _OrganizerControlsState extends State<_OrganizerControls> {
               onPressed: _busy ? null : () => _sendEvent(state, 'match_end'))),
         ]),
       ] else if (widget.status == 'completed') ...[
-        const Text('Match completed. You can still add compensation events.',
+        Text('Match completed. You can still add compensation events.',
             style: TextStyle(color: kMuted, fontSize: 12)),
       ],
     ]));
