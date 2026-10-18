@@ -1,240 +1,411 @@
 import 'package:flutter/material.dart';
-import '../core/api_client.dart';
-import '../core/app_state.dart';
-import '../core/theme.dart';
-import '../widgets/ui.dart';
+import '../models/match.dart';
+import '../services/api_service.dart';
+import '../theme.dart';
+import '../widgets/sync_bar.dart';
 import 'match_detail_screen.dart';
 
+/// Screen 2: Fixtures & Live Matches Screen
+/// Lists tournament fixtures, live games, and past results.
 class FixturesScreen extends StatefulWidget {
   const FixturesScreen({super.key});
+
   @override
   State<FixturesScreen> createState() => _FixturesScreenState();
 }
 
 class _FixturesScreenState extends State<FixturesScreen> {
-  String _filter = 'All';
-  String _leagueId = 'league-alpha-1';
-  bool _loading = false;
-  bool _offline = false;
-  String? _lastUpdated;
-  List<Map<String, dynamic>> _fixtures = [];
-
-  static const _leagues = ['league-alpha-1', 'league-alpha-2', 'league-beta-1'];
+  final ApiService _apiService = ApiService();
+  bool _isLoading = true;
+  String? _errorMessage;
+  List<MatchModel> _allMatches = [];
+  String _selectedFilter = 'all'; // 'all', 'in_progress', 'upcoming', 'completed'
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+    _loadMatches();
   }
 
-  Future<void> _load() async {
-    final state = AppStateScope.of(context);
-    setState(() => _loading = true);
+  Future<void> _loadMatches() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
-    if (state.online) {
-      try {
-        // Fetch from standings to get fixture list; or use cached league config
-        final leagueData = await ApiClient().get('/audit/v1/standings/$_leagueId');
-        final fixtures = _extractFixtures(leagueData);
-        await state.cacheData('fixtures_$_leagueId', fixtures);
-        setState(() { _fixtures = fixtures; _offline = false; _lastUpdated = _now(); });
-      } catch (_) {
-        _loadCache(state);
-      }
-    } else {
-      _loadCache(state);
-    }
-    setState(() => _loading = false);
-  }
-
-  void _loadCache(AppState state) {
-    final cached = state.getCached('fixtures_$_leagueId');
-    if (cached != null) {
-      final data = cached['data'];
-      if (data is List) {
-        _fixtures = data.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-      }
-      _lastUpdated = _formatTs(cached['ts'] as String?);
-      _offline = true;
-    } else {
-      _fixtures = _seedFixtures();
-      _offline = true;
-    }
-  }
-
-  List<Map<String, dynamic>> _extractFixtures(Map<String, dynamic> data) {
-    // standings response has table — build a fake fixture list from team names
-    final table = (data['table'] as List?) ?? [];
-    return table.asMap().entries.map((e) => {
-      'match_id': 'm${e.key + 1}',
-      'home': e.value['team_id'],
-      'away': table[(e.key + 1) % table.length]['team_id'],
-      'status': 'upcoming',
-      'sport': data['sport_id'] ?? 'football',
-      'time': '19:00',
-    }).toList();
-  }
-
-  List<Map<String, dynamic>> _seedFixtures() => [
-    {'match_id': 'm1', 'home': 'Northside FC', 'away': 'Riverside United', 'status': 'in_progress', 'sport': 'football', 'time': '18:30'},
-    {'match_id': 'm2', 'home': 'Falcons', 'away': 'Titans', 'status': 'upcoming', 'sport': 'basketball', 'time': '19:00'},
-    {'match_id': 'm3', 'home': 'Abbottabad XI', 'away': 'Capital CC', 'status': 'completed', 'sport': 'cricket', 'time': '14:00'},
-    {'match_id': 'm4', 'home': 'Nova Five', 'away': 'Pixel Wolves', 'status': 'upcoming', 'sport': 'esports', 'time': '20:00'},
-  ];
-
-  String _now() => _formatTs(DateTime.now().toIso8601String());
-  String _formatTs(String? ts) {
-    if (ts == null) return 'unknown';
     try {
-      final dt = DateTime.parse(ts).toLocal();
-      return '${dt.hour.toString().padLeft(2,'0')}:${dt.minute.toString().padLeft(2,'0')}';
-    } catch (_) { return ts; }
+      final matches = await _apiService.getMatches();
+      if (!mounted) return;
+      setState(() {
+        _allMatches = matches;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'Unable to load matches. Pull down to retry.';
+        _isLoading = false;
+      });
+    }
   }
 
-  List<Map<String, dynamic>> get _visible {
-    if (_filter == 'All') return _fixtures;
-    return _fixtures.where((f) => (f['status'] as String?)?.toLowerCase() == _filter.toLowerCase()).toList();
+  List<MatchModel> get _filteredMatches {
+    if (_selectedFilter == 'all') return _allMatches;
+    return _allMatches.where((m) => m.status == _selectedFilter).toList();
   }
 
   @override
   Widget build(BuildContext context) {
-    return RefreshIndicator(
-      color: kGold, backgroundColor: kSurface,
-      onRefresh: _load,
-      child: ListView(padding: const EdgeInsets.fromLTRB(16, 8, 16, 24), children: [
-        if (_offline) OfflineBanner(lastUpdated: _lastUpdated),
-        const SizedBox(height: 8),
-        const Eyebrow('Matchday'),
-        const SizedBox(height: 6),
-        const HeadlineText('Fixtures'),
-        const SizedBox(height: 4),
-        const Text('All matches across leagues', style: TextStyle(color: kMuted, fontSize: 12)),
-        const SizedBox(height: 14),
-        // League selector
-        SizedBox(
-          height: 34,
-          child: ListView(scrollDirection: Axis.horizontal, children: _leagues.map((l) => Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: GestureDetector(
-              onTap: () { setState(() => _leagueId = l); _load(); },
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: _leagueId == l ? kGold.withValues(alpha: 0.15) : kSurface2,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _leagueId == l ? kGold.withValues(alpha: 0.5) : kBorder),
-                ),
-                child: Text(l, style: TextStyle(
-                  color: _leagueId == l ? kGold : kMuted,
-                  fontSize: 11, fontWeight: FontWeight.w700,
-                )),
-              ),
-            ),
-          )).toList()),
-        ),
-        const SizedBox(height: 12),
-        // Status filter chips
-        Wrap(spacing: 8, children: ['All', 'upcoming', 'in_progress', 'completed'].map((s) => ChoiceChip(
-          label: Text(s == 'All' ? s : matchStatusLabel(s)),
-          selected: _filter == s,
-          onSelected: (_) => setState(() => _filter = s),
-          selectedColor: kGold.withValues(alpha: 0.15),
-          labelStyle: TextStyle(
-            color: _filter == s ? kGold : kMuted,
-            fontWeight: FontWeight.w700, fontSize: 11,
+    return Column(
+      children: [
+        const SyncBar(),
+        _buildFilterBar(),
+        Expanded(
+          child: RefreshIndicator(
+            color: AppColors.primary,
+            backgroundColor: AppColors.surface,
+            onRefresh: _loadMatches,
+            child: _buildBody(),
           ),
-          side: BorderSide(color: _filter == s ? kGold.withValues(alpha: 0.5) : kBorder),
-          backgroundColor: kSurface2,
-        )).toList()),
-        const SizedBox(height: 14),
-        if (_loading)
-          const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator(color: kGold)))
-        else if (_visible.isEmpty)
-          const EmptyState(icon: Icons.event_busy_rounded, title: 'No matches found', subtitle: 'Try a different status filter or league.')
-        else
-          ..._visible.map((f) => Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: _FixtureCard(fixture: f,
-                onTap: () => Navigator.push(context, MaterialPageRoute(
-                    builder: (_) => MatchDetailScreen(matchId: f['match_id'] as String, fixture: f)))),
-          )),
-      ]),
+        ),
+      ],
     );
   }
-}
 
-// ── Fixture Card ───────────────────────────────────────────────────────────
-class _FixtureCard extends StatelessWidget {
-  const _FixtureCard({required this.fixture, required this.onTap});
-  final Map<String, dynamic> fixture;
-  final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) {
-    final status = fixture['status'] as String? ?? 'upcoming';
-    final color = matchStatusColor(status);
-    final isLive = status == 'in_progress';
-    return InkWell(
-      borderRadius: BorderRadius.circular(12),
-      onTap: onTap,
-      child: Panel(
-        padding: const EdgeInsets.all(14),
-        child: Column(children: [
-          Row(children: [
-            Text((fixture['sport'] as String? ?? '').toUpperCase(),
-                style: const TextStyle(color: kMuted, fontSize: 9, letterSpacing: 1.5, fontWeight: FontWeight.w800)),
-            const Spacer(),
-            if (isLive) ...[const LiveDot(), const SizedBox(width: 6)],
-            StatusBadge(matchStatusLabel(status), color: color),
-          ]),
-          const SizedBox(height: 16),
-          Row(children: [
-            Expanded(child: Column(children: [
-              TeamAvatar(fixture['home'] as String? ?? '?'),
-              const SizedBox(height: 8),
-              Text(fixture['home'] as String? ?? '',
-                  textAlign: TextAlign.center,
-                  maxLines: 2, overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
-            ])),
-            Column(children: [
+  Widget _buildFilterBar() {
+    return Container(
+      height: 56,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(bottom: BorderSide(color: AppColors.border, width: 1)),
+      ),
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: [
+          _buildFilterChip('All', 'all', _allMatches.length),
+          const SizedBox(width: 8),
+          _buildFilterChip('🔴 Live', 'in_progress', _allMatches.where((m) => m.status == 'in_progress').length),
+          const SizedBox(width: 8),
+          _buildFilterChip('Upcoming', 'upcoming', _allMatches.where((m) => m.status == 'upcoming' || m.status == 'scheduled').length),
+          const SizedBox(width: 8),
+          _buildFilterChip('Completed', 'completed', _allMatches.where((m) => m.status == 'completed').length),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterChip(String label, String filterKey, int count) {
+    final isSelected = _selectedFilter == filterKey;
+    return ChoiceChip(
+      selected: isSelected,
+      onSelected: (_) {
+        setState(() => _selectedFilter = filterKey);
+      },
+      label: Text(
+        '$label ($count)',
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+          color: isSelected ? AppColors.textInverse : AppColors.textSecondary,
+        ),
+      ),
+      selectedColor: AppColors.primary,
+      backgroundColor: AppColors.surfaceElevated,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: isSelected ? AppColors.primary : AppColors.border,
+          width: 1,
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline_rounded, size: 48, color: AppColors.error),
+              const SizedBox(height: 12),
               Text(
-                status == 'completed'
-                    ? '${fixture['home_score'] ?? 0}  —  ${fixture['away_score'] ?? 0}'
-                    : isLive
-                        ? '${fixture['home_score'] ?? 0}  —  ${fixture['away_score'] ?? 0}'
-                        : 'VS',
-                style: TextStyle(
-                  fontSize: status == 'upcoming' ? 13 : 22,
-                  fontWeight: FontWeight.w900,
-                  color: status == 'upcoming' ? kMuted : kText,
-                  letterSpacing: 1,
-                ),
+                _errorMessage!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
               ),
-              if (status == 'upcoming') ...[
-                const SizedBox(height: 4),
-                Text(fixture['time'] as String? ?? '',
-                    style: const TextStyle(color: kGold, fontSize: 11, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.refresh_rounded, size: 18),
+                label: const Text('Retry'),
+                onPressed: _loadMatches,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final matches = _filteredMatches;
+
+    if (matches.isEmpty) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(height: MediaQuery.of(context).size.height * 0.25),
+          const Center(
+            child: Column(
+              children: [
+                Icon(Icons.sports_soccer_rounded, size: 54, color: AppColors.border),
+                SizedBox(height: 12),
+                Text(
+                  'No fixtures found',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                SizedBox(height: 4),
+                Text(
+                  'Scheduled and live matches will appear here.',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                ),
               ],
-            ]),
-            Expanded(child: Column(children: [
-              TeamAvatar(fixture['away'] as String? ?? '?', color: Colors.lightBlueAccent),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(16),
+      itemCount: matches.length,
+      itemBuilder: (context, index) {
+        final match = matches[index];
+        return _buildMatchCard(match);
+      },
+    );
+  }
+
+  Widget _buildMatchCard(MatchModel match) {
+    Color statusColor = AppColors.textSecondary;
+    String statusText = 'Scheduled';
+
+    if (match.isLive) {
+      statusColor = AppColors.primary;
+      statusText = '● LIVE';
+    } else if (match.isCompleted) {
+      statusColor = AppColors.secondary;
+      statusText = 'FULL TIME';
+    }
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 14),
+      color: AppColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(
+          color: match.isLive ? AppColors.primary.withValues(alpha: 0.4) : AppColors.border,
+          width: match.isLive ? 1.5 : 1,
+        ),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => MatchDetailScreen(matchId: match.matchId, initialMatch: match),
+            ),
+          ).then((_) => _loadMatches());
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              // Header: Sport & Status
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceElevated,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          match.sportId.toUpperCase(),
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.5,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        match.leagueId,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textTertiary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: statusColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      statusText,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: statusColor,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Match Teams & Scores
+              Row(
+                children: [
+                  // Home Team
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          match.homeTeamName,
+                          textAlign: TextAlign.end,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        const Text(
+                          'HOME',
+                          style: TextStyle(fontSize: 10, color: AppColors.textTertiary),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Score Box
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 16),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceElevated,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.border, width: 1),
+                    ),
+                    child: Text(
+                      match.score != null
+                          ? '${match.score!.homeScore} - ${match.score!.awayScore}'
+                          : 'VS',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ),
+
+                  // Away Team
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          match.awayTeamName,
+                          textAlign: TextAlign.start,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        const Text(
+                          'AWAY',
+                          style: TextStyle(fontSize: 10, color: AppColors.textTertiary),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // Bottom footer: Pinned Product indicator or tap to view
+              const Divider(color: AppColors.borderSubtle, height: 1),
               const SizedBox(height: 8),
-              Text(fixture['away'] as String? ?? '',
-                  textAlign: TextAlign.center,
-                  maxLines: 2, overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
-            ])),
-          ]),
-          const SizedBox(height: 12),
-          Row(children: [
-            const Icon(Icons.arrow_forward_rounded, size: 14, color: kMuted),
-            const SizedBox(width: 4),
-            Text('Tap to open', style: const TextStyle(color: kMuted, fontSize: 10)),
-            const Spacer(),
-            Text(fixture['match_id'] as String? ?? '',
-                style: const TextStyle(color: kBorder, fontSize: 10)),
-          ]),
-        ]),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  if (match.pinnedProduct != null)
+                    Row(
+                      children: [
+                        const Icon(Icons.shopping_bag_outlined, size: 14, color: AppColors.gold),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Official Match Gear: ${match.pinnedProduct!.formattedPrice}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.gold,
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    const SizedBox.shrink(),
+                  const Row(
+                    children: [
+                      Text(
+                        'Details',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.secondary,
+                        ),
+                      ),
+                      SizedBox(width: 2),
+                      Icon(Icons.chevron_right_rounded, size: 16, color: AppColors.secondary),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 const db     = require('../config/db');
 const bcrypt = require('bcryptjs');
@@ -112,18 +112,49 @@ async function reset({ seed = 42, stock = { 'var-jersey-001-M': 1, 'var-jersey-0
       });
     }
 
-    // Seed clubs
+    // Seed clubs with rich metadata (venue, branding)
     await trx('clubs').insert([
-      { club_id: 'club-alpha-1', tenant_id: 'tenant-alpha', name: 'Alpha Club 1' },
-      { club_id: 'club-alpha-2', tenant_id: 'tenant-alpha', name: 'Alpha Club 2' },
-      { club_id: 'club-beta-1',  tenant_id: 'tenant-beta',  name: 'Beta Club 1'  },
+      {
+        club_id:   'club-alpha-1',
+        tenant_id: 'tenant-alpha',
+        name:      'Alpha Club 1',
+        meta:      JSON.stringify({ venue: 'Jinnah Sports Complex, Islamabad', city: 'Islamabad', primary_color: '#1E3A8A', secondary_color: '#F59E0B' }),
+      },
+      {
+        club_id:   'club-alpha-2',
+        tenant_id: 'tenant-alpha',
+        name:      'Alpha Club 2',
+        meta:      JSON.stringify({ venue: 'Ayub National Stadium, Rawalpindi', city: 'Rawalpindi', primary_color: '#DC2626', secondary_color: '#FFFFFF' }),
+      },
+      {
+        club_id:   'club-beta-1',
+        tenant_id: 'tenant-beta',
+        name:      'Beta Club 1',
+        meta:      JSON.stringify({ venue: 'Gaddafi Stadium, Lahore', city: 'Lahore', primary_color: '#059669', secondary_color: '#10B981' }),
+      },
     ]);
 
-    // Seed leagues
+    // Seed leagues with team configuration
+    const leagueAlphaConfig = {
+      sport_id:        'football',
+      teams:           ['club-alpha-1', 'club-alpha-2'],
+      points:          { win: 3, draw: 1, loss: 0 },
+      tie_break_order: ['h2h_points','h2h_diff','overall_diff','scored','fair_play','draw_lots'],
+      qualification:   { spots: 1 },
+      lots_seed:       seed,
+    };
+
     await trx('leagues').insert([
-      { league_id: 'league-alpha-1', tenant_id: 'tenant-alpha', sport_id: 'football', config: JSON.stringify({}) },
-      { league_id: 'league-alpha-2', tenant_id: 'tenant-alpha', sport_id: 'football', config: JSON.stringify({}) },
-      { league_id: 'league-beta-1',  tenant_id: 'tenant-beta',  sport_id: 'football', config: JSON.stringify({}) },
+      { league_id: 'league-alpha-1', tenant_id: 'tenant-alpha', sport_id: 'football', config: JSON.stringify(leagueAlphaConfig) },
+      { league_id: 'league-alpha-2', tenant_id: 'tenant-alpha', sport_id: 'football', config: JSON.stringify({ ...leagueAlphaConfig, teams: [] }) },
+      { league_id: 'league-beta-1',  tenant_id: 'tenant-beta',  sport_id: 'football', config: JSON.stringify({ ...leagueAlphaConfig, teams: ['club-beta-1'] }) },
+    ]);
+
+    // Seed sample matches
+    await trx('matches').insert([
+      { match_id: 'match-alpha-1', league_id: 'league-alpha-1', sport_id: 'football', home_team: 'club-alpha-1', away_team: 'club-alpha-2', status: 'in_progress' },
+      { match_id: 'match-alpha-2', league_id: 'league-alpha-1', sport_id: 'football', home_team: 'club-alpha-2', away_team: 'club-alpha-1', status: 'upcoming' },
+      { match_id: 'match-beta-1',  league_id: 'league-beta-1',  sport_id: 'football', home_team: 'club-beta-1',  away_team: 'club-alpha-1', status: 'completed' },
     ]);
 
     // Seed demo users with bcrypt-hashed passwords
@@ -139,6 +170,13 @@ async function reset({ seed = 42, stock = { 'var-jersey-001-M': 1, 'var-jersey-0
       });
     }
 
+    // Seed squads
+    await trx('squads').insert([
+      { squad_id: 'squad-alpha-1', league_id: 'league-alpha-1', club_id: 'club-alpha-1', tenant_id: 'tenant-alpha', name: 'Alpha 1 First Team' },
+      { squad_id: 'squad-alpha-2', league_id: 'league-alpha-1', club_id: 'club-alpha-2', tenant_id: 'tenant-alpha', name: 'Alpha 2 First Team' },
+      { squad_id: 'squad-beta-1',  league_id: 'league-beta-1',  club_id: 'club-beta-1',  tenant_id: 'tenant-beta',  name: 'Beta 1 First Team' },
+    ]);
+
     // Seed players
     await trx('players').insert([
       { player_id: 'player-alpha-1', name: 'Player Alpha 1', tenant_id: 'tenant-alpha', club_id: 'club-alpha-1' },
@@ -146,13 +184,26 @@ async function reset({ seed = 42, stock = { 'var-jersey-001-M': 1, 'var-jersey-0
       { player_id: 'player-beta-1',  name: 'Player Beta 1',  tenant_id: 'tenant-beta',  club_id: 'club-beta-1'  },
     ]);
 
+    // Seed player registrations
+    const today = new Date().toISOString().slice(0, 10);
+    await trx('player_registrations').insert([
+      { player_id: 'player-alpha-1', league_id: 'league-alpha-1', squad_id: 'squad-alpha-1', registration_type: 'transfer', start_date: today, role: 'captain', position: 'Forward' },
+      { player_id: 'player-alpha-2', league_id: 'league-alpha-1', squad_id: 'squad-alpha-2', registration_type: 'transfer', start_date: today, role: 'starter', position: 'Goalkeeper' },
+      { player_id: 'player-beta-1',  league_id: 'league-beta-1',  squad_id: 'squad-beta-1',  registration_type: 'transfer', start_date: today, role: 'starter', position: 'Midfielder' },
+    ]);
+
     // Seed store products and variants
     await trx('products').insert([
-      { product_id: 'prod-jersey-001', tenant_id: 'tenant-alpha', name: 'NaSCon Jersey' },
+      {
+        product_id: 'prod-jersey-001',
+        tenant_id:  'tenant-alpha',
+        name:       'NaSCon Jersey',
+        meta:       JSON.stringify({ category: 'Apparel', description: 'Official 2026 Season Performance Jersey' }),
+      },
     ]);
     await trx('product_variants').insert([
-      { variant_id: 'var-jersey-001-M', product_id: 'prod-jersey-001', sku: 'JERSEY-M', size: 'M', price_minor: 450000, currency: 'PKR', stock: stock['var-jersey-001-M'] ?? 1 },
-      { variant_id: 'var-jersey-001-L', product_id: 'prod-jersey-001', sku: 'JERSEY-L', size: 'L', price_minor: 450000, currency: 'PKR', stock: stock['var-jersey-001-L'] ?? 5 },
+      { variant_id: 'var-jersey-001-M', product_id: 'prod-jersey-001', sku: 'JERSEY-M', size: 'M', color: 'Navy Blue', price_minor: 450000, currency: 'PKR', stock: stock['var-jersey-001-M'] ?? 1 },
+      { variant_id: 'var-jersey-001-L', product_id: 'prod-jersey-001', sku: 'JERSEY-L', size: 'L', color: 'Navy Blue', price_minor: 450000, currency: 'PKR', stock: stock['var-jersey-001-L'] ?? 5 },
     ]);
 
     // Seed discount codes

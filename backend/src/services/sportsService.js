@@ -125,7 +125,7 @@ async function listSports() {
 async function getSport(sport_id) {
   const row = await db('sports').where({ sport_id }).first();
   if (!row) throw new AppError(404, 'SPORT_NOT_FOUND', `Sport '${sport_id}' not found.`, {});
-  return JSON.parse(row.config);
+  return typeof row.config === 'string' ? JSON.parse(row.config) : row.config;
 }
 
 module.exports = { createSport, getSport, listSports };
